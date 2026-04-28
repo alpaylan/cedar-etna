@@ -1,0 +1,12 @@
+diff --git a/cedar-lean/Cedar/Validation/RequestEntityValidator.lean b/cedar-lean/Cedar/Validation/RequestEntityValidator.lean
+--- a/cedar-lean/Cedar/Validation/RequestEntityValidator.lean
++++ b/cedar-lean/Cedar/Validation/RequestEntityValidator.lean
+@@ -49,7 +49,7 @@
+
+ public def instanceOfEntityType (e : EntityUID) (ety : EntityType) (env : TypeEnv) : Bool :=
+   ety == e.ty &&
+-  true
++  (env.ets.isValidEntityUID e || env.acts.contains e)
+
+ public def instanceOfExtType (ext : Ext) (extty: ExtType) : Bool :=
+ match ext, extty with

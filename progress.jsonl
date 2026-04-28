@@ -1,0 +1,64 @@
+{"ts":"2026-04-28T19:06:38Z","stage":"bootstrap","event":"workdir_ready","base_commit":"79f9805b812062976c24ebbb793fc6cfef8051c7"}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"start"}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"a0c5812","subject":"fix behavior of Decimal.parse with underscores (#877)","files":1,"hunks":4}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"d1a3bac","subject":"Repair batched evaluation proof (#833)","files":8,"hunks":24}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"fe5a046","subject":"Fix escaping for euid in term protobuf (#855)","files":1,"hunks":4}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"84fe9c6","subject":"Fix parsing of decimal literals (#799)","files":2,"hunks":0}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"7b9fe45","subject":"Fix encodings of empty record literals (#752)","files":1,"hunks":0}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"05e7634","subject":"Fix decoder issue on empty records (#721)","files":2,"hunks":4}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"d7ab5ab","subject":"Fix validator soundness when `updateSchema` is not used (#648)","files":12,"hunks":365}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"84708ca","subject":"Fix SMT encoding of string literals (#640)","files":2,"hunks":4}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"7c2cc67","subject":"Fixed a merge issue (#599)","files":1,"hunks":23}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"5bc083f","subject":"Fix datetime parsing for extra digits and negative years (#580)","files":2,"hunks":30}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"1b6649e","subject":"Fixes issue in Datetime.Duration.parse when parsing min duration (#577)","files":2,"hunks":13}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"9236b32","subject":"Fix usage of deprecated theorems (#564)","files":2,"hunks":5}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"candidate","hash":"644b79e","subject":"Fix decimal parsing bug (#181)","files":2,"hunks":0}
+{"ts":"2026-04-28T19:40:22Z","stage":"discover","event":"done","commits_scanned":222,"fix_commits":13}
+{"ts":"2026-04-28T19:57:19Z","stage":"atomize","event":"start","total_candidates":13}
+{"ts":"2026-04-28T19:57:19Z","stage":"atomize","event":"variant_skipped","name":"decimal_parse_no_dash_only_int_part_644b79e_1","reason":"surface_changed: String.toInt? \"-\" now returns none on Lean 4.29.1, so the historical guard is dead code; reverse-applying the patch produces no behavioral difference"}
+{"ts":"2026-04-28T19:57:19Z","stage":"atomize","event":"variant_start","name":"decimal_parse_negative_sign_preserved_84fe9c6_1","hash":"84fe9c6","i":1,"of":13}
+{"ts":"2026-04-28T19:57:19Z","stage":"atomize","event":"variant_detected","name":"decimal_parse_negative_sign_preserved_84fe9c6_1","i":1,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T19:57:19Z","stage":"atomize","event":"variant_committed","name":"decimal_parse_negative_sign_preserved_84fe9c6_1","i":1,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T20:00:58Z","stage":"atomize","event":"variant_start","name":"decimal_parse_no_underscore_a0c5812_1","hash":"a0c5812","i":2,"of":13}
+{"ts":"2026-04-28T20:00:58Z","stage":"atomize","event":"variant_detected","name":"decimal_parse_no_underscore_a0c5812_1","i":2,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T20:00:58Z","stage":"atomize","event":"variant_committed","name":"decimal_parse_no_underscore_a0c5812_1","i":2,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T20:00:58Z","stage":"atomize","event":"done","committed":2,"skipped":1}
+{"ts":"2026-04-28T20:08:24Z","stage":"runner","event":"start"}
+{"ts":"2026-04-28T20:08:24Z","stage":"runner","event":"compiled"}
+{"ts":"2026-04-28T20:08:24Z","stage":"runner","event":"lean_exe_built","target":"etna_cedar"}
+{"ts":"2026-04-28T20:08:24Z","stage":"runner","event":"done"}
+{"ts":"2026-04-28T20:08:24Z","stage":"document","event":"start"}
+{"ts":"2026-04-28T20:08:24Z","stage":"document","event":"done","tool":"etna workload doc","note":"framework coverage table emits proptest/quickcheck/crabcheck/hegel; Lean workloads only support plausible+etna"}
+{"ts":"2026-04-28T20:08:24Z","stage":"validate","event":"start","variants":2}
+{"ts":"2026-04-28T20:08:24Z","stage":"validate","event":"variant_ok","name":"decimal_parse_negative_sign_preserved_84fe9c6_1"}
+{"ts":"2026-04-28T20:08:24Z","stage":"validate","event":"variant_ok","name":"decimal_parse_no_underscore_a0c5812_1"}
+{"ts":"2026-04-28T20:08:24Z","stage":"validate","event":"done","passed":2,"failed":0}
+{"ts":"2026-04-28T20:29:13Z","stage":"atomize","event":"variant_start","name":"validator_action_entity_no_attrs_d7ab5ab_1","hash":"d7ab5ab","i":3,"of":13,"category":"validator_soundness"}
+{"ts":"2026-04-28T20:29:13Z","stage":"atomize","event":"variant_detected","name":"validator_action_entity_no_attrs_d7ab5ab_1","i":3,"of":13,"injection":"patch","note":"buggy state breaks Cedar.Thm proof closure (RequestEntityValidation.lean:232) but lake build etna_cedar (impl-only target) passes; validate script targets etna_cedar"}
+{"ts":"2026-04-28T20:29:13Z","stage":"atomize","event":"variant_committed","name":"validator_action_entity_no_attrs_d7ab5ab_1","i":3,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T20:29:13Z","stage":"validate","event":"variant_ok","name":"validator_action_entity_no_attrs_d7ab5ab_1"}
+{"ts":"2026-04-28T20:29:13Z","stage":"validate","event":"done","passed":3,"failed":0}
+{"ts":"2026-04-28T20:37:03Z","stage":"atomize","event":"variant_start","name":"smt_encode_string_balanced_quotes_84708ca_1","hash":"84708ca","i":4,"of":13,"category":"symcc_soundness"}
+{"ts":"2026-04-28T20:37:03Z","stage":"atomize","event":"variant_detected","name":"smt_encode_string_balanced_quotes_84708ca_1","i":4,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T20:37:03Z","stage":"atomize","event":"variant_committed","name":"smt_encode_string_balanced_quotes_84708ca_1","i":4,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T20:37:03Z","stage":"validate","event":"variant_ok","name":"smt_encode_string_balanced_quotes_84708ca_1"}
+{"ts":"2026-04-28T20:37:03Z","stage":"validate","event":"done","passed":4,"failed":0}
+{"ts":"2026-04-28T20:45:19Z","stage":"atomize","event":"variant_start","name":"validate_rejects_undeclared_entities_eb3bfff_1","hash":"eb3bfff","i":5,"of":13,"category":"validator_soundness"}
+{"ts":"2026-04-28T20:45:19Z","stage":"atomize","event":"variant_detected","name":"validate_rejects_undeclared_entities_eb3bfff_1","i":5,"of":13,"injection":"patch","note":"witness uses true||expr to short-circuit typechecker; only checkEntities catches the undeclared Foo"}
+{"ts":"2026-04-28T20:45:19Z","stage":"atomize","event":"variant_committed","name":"validate_rejects_undeclared_entities_eb3bfff_1","i":5,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T20:45:19Z","stage":"validate","event":"variant_ok","name":"validate_rejects_undeclared_entities_eb3bfff_1"}
+{"ts":"2026-04-28T20:45:19Z","stage":"validate","event":"done","passed":5,"failed":0}
+{"ts":"2026-04-28T20:52:10Z","stage":"atomize","event":"variant_start","name":"validate_request_principal_exists_1a76346_1","hash":"1a76346","i":6,"of":13,"category":"validator_soundness"}
+{"ts":"2026-04-28T20:52:10Z","stage":"atomize","event":"variant_committed","name":"validate_request_principal_exists_1a76346_1","i":6,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T20:52:10Z","stage":"validate","event":"variant_ok","name":"validate_request_principal_exists_1a76346_1"}
+{"ts":"2026-04-28T20:52:10Z","stage":"validate","event":"done","passed":6,"failed":0}
+{"ts":"2026-04-28T21:03:59Z","stage":"atomize","event":"variant_committed","name":"schema_well_formed_no_singleton_bools_e785e2e_1","i":7,"of":13,"injection":"patch"}
+{"ts":"2026-04-28T21:03:59Z","stage":"validate","event":"variant_ok","name":"schema_well_formed_no_singleton_bools_e785e2e_1"}
+{"ts":"2026-04-28T21:03:59Z","stage":"validate","event":"done","passed":7,"failed":0}
+{"ts":"2026-04-28T21:13:35Z","stage":"atomize","event":"variant_committed","name":"encoder_define_entity_rejects_non_member_fe5a046_1","i":8,"of":13,"injection":"patch","note":"SymCC entity-index leak; required exposing defineEntity + EncoderM as public, and stub Solver via /dev/null"}
+{"ts":"2026-04-28T21:13:35Z","stage":"validate","event":"variant_ok","name":"encoder_define_entity_rejects_non_member_fe5a046_1"}
+{"ts":"2026-04-28T21:13:35Z","stage":"validate","event":"done","passed":8,"failed":0}
+{"ts":"2026-04-28T21:21:33Z","stage":"atomize","event":"variant_skipped","name":"datetime_parse_tz_offset_mins_lt_60_c2f00f6_1","reason":"surface_changed: upstream Lean Time library now bounds-checks tz offset minutes internally; removing the cedar-side tzOffsetMinsLt60 guard does not change parse behavior on inputs like +0099 or +0060"}
+{"ts":"2026-04-28T21:30:17Z","stage":"atomize","event":"variant_committed","name":"validate_with_level_accepts_c186f0f_1","i":9,"of":13,"injection":"patch","note":"completeness variant: witness asserts validateWithLevel.ok"}
+{"ts":"2026-04-28T21:30:17Z","stage":"validate","event":"variant_ok","name":"validate_with_level_accepts_c186f0f_1"}
+{"ts":"2026-04-28T21:30:17Z","stage":"validate","event":"done","passed":9,"failed":0}

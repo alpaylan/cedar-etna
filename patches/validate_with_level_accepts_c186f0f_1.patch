@@ -1,0 +1,12 @@
+diff --git a/cedar-lean/Cedar/Validation/Levels.lean b/cedar-lean/Cedar/Validation/Levels.lean
+--- a/cedar-lean/Cedar/Validation/Levels.lean
++++ b/cedar-lean/Cedar/Validation/Levels.lean
+@@ -58,7 +58,7 @@
+   match tx, path with
+   | .var _ _, _ => true
+   | .lit (.entityUID euid) _, _ =>
+-    false
++    euid == env.reqty.action
+   | .ite tx₁ tx₂ tx₃ _, _ =>
+     tx₁.checkLevel env nmax &&
+     tx₂.checkEntityAccessLevel env n nmax path &&

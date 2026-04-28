@@ -1,0 +1,12 @@
+diff --git a/cedar-lean/Cedar/Spec/Ext/Decimal.lean b/cedar-lean/Cedar/Spec/Ext/Decimal.lean
+--- a/cedar-lean/Cedar/Spec/Ext/Decimal.lean
++++ b/cedar-lean/Cedar/Spec/Ext/Decimal.lean
+@@ -56,7 +56,7 @@
+       | .some l, .some r =>
+         let l' := l * (Int.pow 10 DECIMAL_DIGITS)
+         let r' := r * (Int.pow 10 (DECIMAL_DIGITS - rlen))
+-        let i  := if l ≥ 0 then l' + r' else l' - r'
++        let i  := if !left.startsWith "-" then l' + r' else l' - r'
+         decimal? i
+       | _, _ => .none
+     else .none

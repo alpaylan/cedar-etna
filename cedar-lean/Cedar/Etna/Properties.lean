@@ -128,4 +128,38 @@ def property_smt_encode_string_balanced_quotes (s : String) : IO PropertyResult 
   if quoteCount % 2 == 0 then return .pass
   else return .fail s!"encodeString({repr s}) wrapped to {repr encoded} has {quoteCount} '\"' (odd; malformed SMT)"
 
+/--
+Property (validator entity-existence soundness): if `validate policies schema`
+returns `.ok ()`, then every policy's expression must pass
+`checkEntities schema · = .ok ()` — i.e. every entity UID literal and every
+`is <Type>` must reference a type/uid declared in the schema.
+
+Cedar's Lean typechecker historically short-circuited on type errors for
+unknown entity types, so a policy referencing an undeclared `Foo::"x"`
+passed Lean validation while the Rust validator (which runs the entity
+existence check as a separate pass) rejected it. The two validators
+disagreed on validity, breaking the differential-soundness contract.
+
+Historical fix: eb3bfff (cedar-spec #779 "Make lean validator check entity
+type and action existence before type checking"), which added the
+`checkEntities` pre-pass at the top of `typecheckPolicyWithEnvironments`.
+The synthetic ETNA patch removes that pre-pass; the witness then
+constructs a policy referencing an undeclared entity type and observes
+`validate` returning `.ok ()` instead of an `unknownEntity` error.
+
+This property uses `checkEntities` itself as the soundness oracle —
+validation must agree with the existence check on every policy.
+-/
+def property_validate_rejects_undeclared_entities (policies : Policies) (schema : Schema) : PropertyResult :=
+  match validate policies schema with
+  | .error _ => .pass
+  | .ok () =>
+    let bad : List String := policies.filterMap (fun p =>
+      match checkEntities schema p.toExpr with
+      | .error _ => some p.id
+      | .ok () => none)
+    match bad with
+    | [] => .pass
+    | pid :: _ => .fail s!"validate passed but policy {pid} references undeclared entities"
+
 end Cedar.Etna

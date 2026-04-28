@@ -63,4 +63,33 @@ def witness_validate_action_entity_no_attrs_case_action_with_attr : PropertyResu
 def witness_smt_encode_string_balanced_quotes_case_quote_in_middle : IO PropertyResult :=
   property_smt_encode_string_balanced_quotes "x\"y"
 
+private def fooEty : EntityType := { id := "Foo", path := [] }
+private def fooUid : EntityUID := { ty := fooEty, eid := "x" }
+
+/--
+Policy `permit(principal, action, resource) when { true || (principal == Foo::"x") };`.
+The OR short-circuits the typechecker on the `true` branch and returns
+`bool .tt`, so the right-hand reference to the undeclared `Foo` entity is
+never inspected by `typecheckPolicy`. Only the `checkEntities` pre-pass
+catches the undeclared reference — exactly the soundness gap that #779 closed.
+-/
+private def policyRefsUndeclared : Policy := {
+  id := "p0",
+  effect := Effect.permit,
+  principalScope := PrincipalScope.principalScope Scope.any,
+  actionScope := ActionScope.actionScope Scope.any,
+  resourceScope := ResourceScope.resourceScope Scope.any,
+  condition := [{
+    kind := ConditionKind.when,
+    body := Expr.or
+      (Expr.lit (.bool true))
+      (Expr.binaryApp BinaryOp.eq (Expr.var Var.principal) (Expr.lit (.entityUID fooUid)))
+  }]
+}
+
+private def policiesUndeclaredEntity : Policies := [policyRefsUndeclared]
+
+def witness_validate_rejects_undeclared_entities_case_unknown_principal : PropertyResult :=
+  property_validate_rejects_undeclared_entities policiesUndeclaredEntity schemaWithOneAction
+
 end Cedar.Etna

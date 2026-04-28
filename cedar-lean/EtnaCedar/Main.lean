@@ -34,6 +34,8 @@ def witnessFor (property : String) : Except String (IO PropertyResult) :=
       .ok (pure witness_validate_action_entity_no_attrs_case_action_with_attr)
   | "SmtEncodeStringBalancedQuotes" =>
       .ok witness_smt_encode_string_balanced_quotes_case_quote_in_middle
+  | "ValidateRejectsUndeclaredEntities" =>
+      .ok (pure witness_validate_rejects_undeclared_entities_case_unknown_principal)
   | _ => .error s!"Unknown property for etna: {property}"
 
 def runEtna (property : String) : IO Outcome := do

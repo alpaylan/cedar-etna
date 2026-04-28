@@ -119,4 +119,25 @@ private def ghostRequest : Request := {
 def witness_validate_request_principal_exists_case_ghost_user : PropertyResult :=
   property_validate_request_principal_exists schemaWithPhotoAndOneAction ghostRequest
 
+/--
+Schema with a `User` entity whose attribute `flag` is typed as the
+singleton-true bool `(.bool .tt)`. This is unsound under Cedar's spec —
+the typechecker would conclude any user's `.flag` is provably `true` —
+but only the `validateLifted` pass catches it.
+-/
+private def userEntryWithSingletonBoolAttr : EntitySchemaEntry :=
+  EntitySchemaEntry.standard {
+    ancestors := Set.empty,
+    attrs     := Map.mk [(("flag" : Attr), Qualified.required (CedarType.bool BoolType.tt))],
+    tags      := none
+  }
+
+private def schemaWithSingletonBoolAttr : Schema := {
+  ets  := Map.make [(userEty, userEntryWithSingletonBoolAttr), (photoEty, photoEntry)],
+  acts := Map.mk [(actionUid, aseValid)]
+}
+
+def witness_schema_well_formed_no_singleton_bools_case_attr_bool_tt : PropertyResult :=
+  property_schema_well_formed_no_singleton_bools schemaWithSingletonBoolAttr
+
 end Cedar.Etna

@@ -13,6 +13,7 @@ import Cedar.Spec
 import Cedar.Validation.RequestEntityValidator
 import Cedar.Validation.Validator
 import Cedar.SymCC.Encoder
+import Cedar.Validation.EnvironmentValidator
 
 namespace Cedar.Etna
 
@@ -191,5 +192,41 @@ def property_validate_request_principal_exists (schema : Schema) (request : Requ
     let inActs := schema.acts.contains request.principal
     if inEts || inActs then .pass
     else .fail s!"validateRequest passed but principal {request.principal} is not declared in schema"
+
+/--
+Property (TypeEnv well-formedness): if `Schema.validateWellFormed schema`
+returns `.ok ()`, then every attribute type and every tag type in every
+schema entry must be lifted — i.e. no nested `.bool .tt` or `.bool .ff`
+singleton-bool types are allowed; only `.bool .anyBool` is.
+
+The Cedar typechecker's soundness proofs assume every schema-level type is
+lifted, so an unlifted singleton-bool type lets the typechecker prove a
+literal-specific judgement (`flag : bool .tt`) on user-provided attribute
+data, which is unsound under the actual operational semantics (the user
+can put `flag = false` in an entity). The fix added a `validateLifted`
+pass over schema-level types in `StandardSchemaEntry.validateWellFormed`
+and `ActionSchemaEntry.validateWellFormed`.
+
+Historical fix: e785e2e (cedar-spec #689 "Require that well-formed
+TypeEnv does not have singleton Bool types"). The synthetic ETNA patch
+removes the `(CedarType.record entry.attrs).validateLifted` line; the
+witness then constructs a schema whose entity attribute has type
+`.bool .tt` and observes `Schema.validateWellFormed` returning `.ok ()`
+instead of a `bool type is not lifted` error.
+-/
+def property_schema_well_formed_no_singleton_bools (schema : Schema) : PropertyResult :=
+  match Schema.validateWellFormed schema with
+  | .error _ => .pass
+  | .ok () =>
+    let attrsBad : List EntityType := schema.ets.toList.filterMap (fun (ety, entry) =>
+      match entry with
+      | .standard se =>
+        match (CedarType.record se.attrs).validateLifted with
+        | .error _ => some ety
+        | .ok () => none
+      | .enum _ => none)
+    match attrsBad with
+    | [] => .pass
+    | ety :: _ => .fail s!"Schema.validateWellFormed passed but entity type {ety} has an unlifted (singleton-bool) attribute"
 
 end Cedar.Etna

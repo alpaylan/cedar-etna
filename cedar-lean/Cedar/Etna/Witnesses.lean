@@ -146,4 +146,28 @@ private def ghostUserUid : EntityUID := { ty := userEty, eid := "zzz" }
 def witness_define_entity_rejects_non_member_case_zzz : IO PropertyResult :=
   property_define_entity_rejects_non_member enumMembers ghostUserUid
 
+/--
+Policy `permit(principal, action, resource) when { Action::"a" in Action::"a" };`.
+The when-condition's `.binaryApp .mem (.lit Action::"a") (.lit Action::"a")`
+routes the left literal through `checkEntityAccessLevel`. The fixed level
+checker accepts the literal because it equals the env's action; the buggy
+version (no special case) rejects via the `_, _ => false` fallthrough.
+-/
+private def policyActionLitInAction : Policy := {
+  id := "p_action_lit",
+  effect := Effect.permit,
+  principalScope := PrincipalScope.principalScope Scope.any,
+  actionScope := ActionScope.actionScope Scope.any,
+  resourceScope := ResourceScope.resourceScope Scope.any,
+  condition := [{
+    kind := ConditionKind.when,
+    body := Expr.binaryApp BinaryOp.mem
+      (Expr.lit (.entityUID actionUid))
+      (Expr.lit (.entityUID actionUid))
+  }]
+}
+
+def witness_validate_with_level_accepts_case_action_in_action : PropertyResult :=
+  property_validate_with_level_accepts [policyActionLitInAction] schemaWithPhotoAndOneAction 1
+
 end Cedar.Etna

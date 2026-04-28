@@ -276,4 +276,29 @@ def property_schema_well_formed_no_singleton_bools (schema : Schema) : PropertyR
     | [] => .pass
     | ety :: _ => .fail s!"Schema.validateWellFormed passed but entity type {ety} has an unlifted (singleton-bool) attribute"
 
+/--
+Property (level-checker completeness): for a chosen `(policies, schema, level)`
+the validator should accept the policies. The witness instantiates a policy
+that uses a literal entity UID equal to the environment's action in
+entity-access position (`Action::"a" in Action::"a"`). Pre-#573 the level
+checker had no special case for literal entity UIDs and routed them through
+the `_, _ => false` fallthrough, rejecting valid policies as `.levelError`.
+
+This is a *completeness* variant — the buggy validator is over-strict, not
+unsound. We frame it as ETNA does any other variant: the witness asserts
+acceptance, and the variant patch causes the witness to fail.
+
+Historical fix: c186f0f (cedar-spec #573 "Update level checking to allow
+access to literals equal to environment action"), which added the
+`.lit (.entityUID euid) _, _ => euid == env.reqty.action` clause to
+`TypedExpr.checkEntityAccessLevel`. The synthetic ETNA patch reduces that
+clause's body to `false`, restoring the over-strict behavior.
+-/
+def property_validate_with_level_accepts (policies : Policies) (schema : Schema) (level : Nat) : PropertyResult :=
+  match validateWithLevel policies schema level with
+  | .ok () => .pass
+  | .error (.levelError pid) =>
+    .fail s!"validateWithLevel rejected policy {pid} with .levelError — the level checker rejected an entity-access expression it should have allowed"
+  | .error _ => .pass
+
 end Cedar.Etna

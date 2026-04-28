@@ -140,4 +140,10 @@ private def schemaWithSingletonBoolAttr : Schema := {
 def witness_schema_well_formed_no_singleton_bools_case_attr_bool_tt : PropertyResult :=
   property_schema_well_formed_no_singleton_bools schemaWithSingletonBoolAttr
 
+private def enumMembers : List String := ["alice", "bob"]
+private def ghostUserUid : EntityUID := { ty := userEty, eid := "zzz" }
+
+def witness_define_entity_rejects_non_member_case_zzz : IO PropertyResult :=
+  property_define_entity_rejects_non_member enumMembers ghostUserUid
+
 end Cedar.Etna

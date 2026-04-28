@@ -130,6 +130,53 @@ def property_smt_encode_string_balanced_quotes (s : String) : IO PropertyResult 
   else return .fail s!"encodeString({repr s}) wrapped to {repr encoded} has {quoteCount} '\"' (odd; malformed SMT)"
 
 /--
+Build a stub `Cedar.SymCC.Solver` whose streams discard everything written
+and produce nothing. `defineEntity` for enum-typed entities never touches
+the solver streams (it only reads from EncoderState), so a no-op solver
+is sufficient for testing the enum branch.
+-/
+private def stubSolver : IO Cedar.SymCC.Solver := do
+  let nullDev ← IO.FS.Handle.mk "/dev/null" .write
+  let stream := IO.FS.Stream.ofHandle nullDev
+  return { smtLibInput := stream, smtLibOutput := none }
+
+/--
+Property (SymCC encoder soundness): if `defineEntity tyEnc entity` returns
+successfully for an entity whose type is registered as an enum, then
+`entity.eid` must be one of the declared enum members.
+
+Pre-#855, `defineEntity` looked up `members.idxOf entity.eid` (non-`?`
+variant), which on `List` returns `members.length` when the element is
+absent — producing an out-of-range enum index. The encoder then emitted
+`{tyEnc}_m{members.length}` as the SMT identifier, referencing a
+member that does not exist. Downstream solvers either generate UNSAT for
+the wrong reason or accept an invalid model, breaking soundness.
+
+Historical fix: fe5a046 (cedar-spec #855 "Fix escaping for euid in term
+protobuf"; the Lean side replaced `idxOf` with `idxOf?` and explicitly
+threw on the `none` case). The synthetic ETNA patch reverts that to the
+buggy index-leak form.
+-/
+def property_define_entity_rejects_non_member
+    (members : List String) (entity : Cedar.Spec.EntityUID) : IO PropertyResult := do
+  -- Vacuously pass if the eid IS a valid member; the bug is in the absent case.
+  if members.contains entity.eid then return .pass
+  let state : Cedar.SymCC.EncoderState := {
+    terms := Batteries.RBMap.empty,
+    types := Batteries.RBMap.empty,
+    uufs  := Batteries.RBMap.empty,
+    enums := Batteries.RBMap.ofList [(entity.ty, members)] (compareOfLessAndEq · ·)
+  }
+  let solver ← stubSolver
+  let action : IO (String × Cedar.SymCC.EncoderState) :=
+    ((Cedar.SymCC.Encoder.defineEntity "U_enc" entity).run state).run solver
+  let result ← action.toBaseIO
+  match result with
+  | .ok (encId, _) =>
+    return .fail s!"defineEntity for non-member {entity.eid} returned {repr encId} instead of throwing (members: {members})"
+  | .error _ => return .pass
+
+/--
 Property (validator entity-existence soundness): if `validate policies schema`
 returns `.ok ()`, then every policy's expression must pass
 `checkEntities schema · = .ok ()` — i.e. every entity UID literal and every

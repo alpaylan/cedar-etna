@@ -82,7 +82,7 @@ def EncoderState.init (εnv : SymEnv) : EncoderState :=
   let enums := εnv.entities.toList.filterMap λ (ety, d) => do (ety, (← d.members).toList)
   ⟨RBMap.empty, RBMap.empty, RBMap.empty, RBMap.ofList enums (compareOfLessAndEq · ·)⟩
 
-abbrev EncoderM (α) := StateT EncoderState SolverM α
+public abbrev EncoderM (α) := StateT EncoderState SolverM α
 
 namespace Encoder
 
@@ -264,7 +264,7 @@ def encodePattern : Pattern → EncoderM String
   | [e] => encodePatElem e
   | p   => return s!"(re.++ {String.intercalate " " (← p.mapM encodePatElem)})"
 
-def defineEntity (tyEnc : String) (entity : EntityUID) : EncoderM String := do
+public def defineEntity (tyEnc : String) (entity : EntityUID) : EncoderM String := do
   match (← get).enums.find? entity.ty with
   | .some members =>
     match members.idxOf? entity.eid with

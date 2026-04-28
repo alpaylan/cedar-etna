@@ -40,6 +40,8 @@ def witnessFor (property : String) : Except String (IO PropertyResult) :=
       .ok (pure witness_validate_request_principal_exists_case_ghost_user)
   | "SchemaWellFormedNoSingletonBools" =>
       .ok (pure witness_schema_well_formed_no_singleton_bools_case_attr_bool_tt)
+  | "DefineEntityRejectsNonMember" =>
+      .ok witness_define_entity_rejects_non_member_case_zzz
   | _ => .error s!"Unknown property for etna: {property}"
 
 def runEtna (property : String) : IO Outcome := do

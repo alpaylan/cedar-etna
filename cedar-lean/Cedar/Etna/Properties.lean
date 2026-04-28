@@ -9,10 +9,16 @@ variants when the same invariant catches several historical bugs.
 
 import Cedar.Etna.Property
 import Cedar.Spec.Ext.Decimal
+import Cedar.Spec
+import Cedar.Validation.RequestEntityValidator
+import Cedar.Validation.Validator
 
 namespace Cedar.Etna
 
 open Cedar.Spec.Ext
+open Cedar.Spec
+open Cedar.Validation
+open Cedar.Data
 
 /--
 Property: a parsed decimal whose source string starts with `'-'` must not be
@@ -60,5 +66,37 @@ def property_decimal_parse_no_underscore (s : String) : PropertyResult :=
     if s.contains '_' then
       .fail s!"Decimal.parse {repr s} = some {repr d} but underscores are disallowed"
     else .pass
+
+/--
+Property (validator soundness): if `validateEntities schema entities` returns
+`.ok ()`, then every action entity in `entities` (judged by membership in any
+schema environment's `acts` table) must have **empty** `attrs`.
+
+Cedar's spec forbids action entities from carrying attributes — the
+type-checker proofs of soundness rely on this invariant when reasoning about
+action authorization. A validator that accepts an action entity with
+non-empty `attrs` admits ill-typed worlds.
+
+Historical fix: d7ab5ab (cedar-spec #648 "Fix validator soundness when
+`updateSchema` is not used"), which folded the action-entity attrs/tags
+checks directly into `instanceOfSchemaEntry` so that calling
+`validateEntities` without first invoking `updateSchema` no longer leaks
+the soundness gap. The synthetic ETNA patch reintroduces the gap by
+short-circuiting the `data.attrs == Map.empty` guard in
+`instanceOfActionSchemaEntry`.
+-/
+def property_validate_action_entity_no_attrs (schema : Schema) (entities : Entities) : PropertyResult :=
+  match validateEntities schema entities with
+  | .error _ => .pass
+  | .ok () =>
+    let actionUids : List EntityUID :=
+      schema.environments.flatMap (fun env => env.acts.toList.map Prod.fst)
+    let bad : List EntityUID := actionUids.filter (fun uid =>
+      match entities.find? uid with
+      | .some d => !d.attrs.toList.isEmpty
+      | .none   => false)
+    match bad with
+    | [] => .pass
+    | uid :: _ => .fail s!"validateEntities passed but action entity {uid} has non-empty attrs"
 
 end Cedar.Etna

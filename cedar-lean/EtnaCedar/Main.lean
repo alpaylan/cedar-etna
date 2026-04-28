@@ -32,6 +32,8 @@ def runEtna (property : String) : IO Outcome := do
         Except.ok witness_decimal_parse_negative_sign_preserved_case_neg_zero
     | "DecimalParseNoUnderscore" =>
         Except.ok witness_decimal_parse_no_underscore_case_int_part
+    | "ValidateActionEntityNoAttrs" =>
+        Except.ok witness_validate_action_entity_no_attrs_case_action_with_attr
     | _ => Except.error s!"Unknown property for etna: {property}"
   let t1 ← IO.monoMsNow
   let elapsed : Nat := (t1 - t0) * 1000

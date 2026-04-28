@@ -165,7 +165,7 @@ Note in particular that `\\` is NOT an escape sequence,
 so cvc5 will read `\\u{0}` as a two-character string with
 characters `\u{5c}` and `\0`.
 -/
-def encodeString (s : String) : IO String := do
+public def encodeString (s : String) : IO String := do
   let l ← s.toList.mapM (λ c =>
       if c = '"' then return "\"\""
       else if c = '\\' then

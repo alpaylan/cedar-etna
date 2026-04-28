@@ -60,4 +60,7 @@ def witness_decimal_parse_no_underscore_case_int_part : PropertyResult :=
 def witness_validate_action_entity_no_attrs_case_action_with_attr : PropertyResult :=
   property_validate_action_entity_no_attrs schemaWithOneAction entitiesBadAction
 
+def witness_smt_encode_string_balanced_quotes_case_quote_in_middle : IO PropertyResult :=
+  property_smt_encode_string_balanced_quotes "x\"y"
+
 end Cedar.Etna

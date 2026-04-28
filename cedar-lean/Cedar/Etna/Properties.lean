@@ -12,6 +12,7 @@ import Cedar.Spec.Ext.Decimal
 import Cedar.Spec
 import Cedar.Validation.RequestEntityValidator
 import Cedar.Validation.Validator
+import Cedar.SymCC.Encoder
 
 namespace Cedar.Etna
 
@@ -98,5 +99,33 @@ def property_validate_action_entity_no_attrs (schema : Schema) (entities : Entit
     match bad with
     | [] => .pass
     | uid :: _ => .fail s!"validateEntities passed but action entity {uid} has non-empty attrs"
+
+/--
+Property (SMT-LIB encoding soundness): the SMT string literal produced by
+wrapping `Cedar.SymCC.Encoder.encodeString s` in outer `"`...`"` must contain
+an even number of `"` characters.
+
+Per SMT-LIB 2.7, every literal `"` inside a string value must be doubled
+(`""`), and the literal is delimited by outer `"` on each side. Both forms
+are quote-balanced: any well-formed SMT string literal has an even count of
+`"` characters.
+
+Historical fix: 84708ca (cedar-spec #640 "Fix SMT encoding of string
+literals") added the doubling rule (`s.replace "\"" "\"\""`) to
+`encodeString` so user-controlled strings containing `"` produce
+spec-compliant SMT. The buggy state lets a single `"` leak through,
+making the resulting SMT malformed; downstream solvers either reject the
+query or — worse — silently misparse it, yielding unsound symbolic
+verification results.
+
+This property runs in `IO` because `encodeString` is `IO String` (it
+throws on out-of-range Unicode code points).
+-/
+def property_smt_encode_string_balanced_quotes (s : String) : IO PropertyResult := do
+  let body ← Cedar.SymCC.Encoder.encodeString s
+  let encoded := s!"\"{body}\""
+  let quoteCount := encoded.toList.foldl (fun n c => if c == '"' then n + 1 else n) 0
+  if quoteCount % 2 == 0 then return .pass
+  else return .fail s!"encodeString({repr s}) wrapped to {repr encoded} has {quoteCount} '\"' (odd; malformed SMT)"
 
 end Cedar.Etna

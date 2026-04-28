@@ -92,4 +92,31 @@ private def policiesUndeclaredEntity : Policies := [policyRefsUndeclared]
 def witness_validate_rejects_undeclared_entities_case_unknown_principal : PropertyResult :=
   property_validate_rejects_undeclared_entities policiesUndeclaredEntity schemaWithOneAction
 
+private def photoEntry : EntitySchemaEntry := EntitySchemaEntry.standard {
+  ancestors := Set.empty,
+  attrs     := Map.empty,
+  tags      := none
+}
+
+/--
+Schema with a Photo entity type and one Action::"a" that applies to
+principal User and resource Photo. `User` itself is *not* declared in
+`ets` — only as a type referenced by the action's appliesToPrincipal set.
+-/
+private def schemaWithPhotoAndOneAction : Schema := {
+  ets  := Map.mk [(photoEty, photoEntry)],
+  acts := Map.mk [(actionUid, aseValid)]
+}
+
+/-- Request whose principal `User::"ghost"` references an undeclared entity. -/
+private def ghostRequest : Request := {
+  principal := { ty := userEty, eid := "ghost" },
+  action    := actionUid,
+  resource  := { ty := photoEty, eid := "p1" },
+  context   := Map.empty
+}
+
+def witness_validate_request_principal_exists_case_ghost_user : PropertyResult :=
+  property_validate_request_principal_exists schemaWithPhotoAndOneAction ghostRequest
+
 end Cedar.Etna

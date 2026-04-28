@@ -162,4 +162,34 @@ def property_validate_rejects_undeclared_entities (policies : Policies) (schema 
     | [] => .pass
     | pid :: _ => .fail s!"validate passed but policy {pid} references undeclared entities"
 
+/--
+Property (request-validation soundness): if `validateRequest schema request`
+returns `.ok ()`, then `request.principal` must exist somewhere in the
+schema — either as a valid entity UID in `env.ets` for some environment, or
+as an action in `env.acts`.
+
+Catches the family of bugs where `instanceOfEntityType` accepted any UID
+whose entity type matched the expected one, ignoring whether the UID was
+actually declared. Pre-#658, the function checked only enum membership
+(returning `true` for non-enum types regardless of declaration), so a
+"ghost" entity reference like `User::"ghost"` would match a request type
+even with `User` absent from the entity schema. Downstream typecheckers
+then treat the request as well-typed, voiding their soundness assumptions.
+
+Historical fix: 1a76346 (cedar-spec #658 "Add `Environment.WellFormed` as
+a new precondition"). The implementation change is the new check
+`env.ets.isValidEntityUID e || env.acts.contains e` in
+`instanceOfEntityType`. The synthetic ETNA patch replaces that conjunct
+with `true`; the witness then sees a `User::"ghost"` request validate
+against a schema that declares no `User` type.
+-/
+def property_validate_request_principal_exists (schema : Schema) (request : Request) : PropertyResult :=
+  match validateRequest schema request with
+  | .error _ => .pass
+  | .ok () =>
+    let inEts := schema.ets.isValidEntityUID request.principal
+    let inActs := schema.acts.contains request.principal
+    if inEts || inActs then .pass
+    else .fail s!"validateRequest passed but principal {request.principal} is not declared in schema"
+
 end Cedar.Etna

@@ -22,6 +22,8 @@ require "leanprover" / "doc-gen4" @ git "v4.29.0"
 
 require "leanprover-community" / "batteries" @ git "v4.29.0"
 
+require "leanprover-community" / "plausible" @ git "v4.29.0"
+
 package Cedar
 
 @[default_target]
@@ -61,6 +63,9 @@ lean_exe CedarSymTests where
 
 lean_exe Cli where
   root := `Cli.Main
+
+lean_exe etna_cedar where
+  root := `EtnaCedar.Main
 
 -- Check that a .lean file imports all files in its corresponding directory
 partial def checkThmFile (module : String) (paths : List System.FilePath) : IO Nat := do

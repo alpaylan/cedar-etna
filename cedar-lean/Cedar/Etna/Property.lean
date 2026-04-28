@@ -16,7 +16,7 @@ inductive PropertyResult where
   | pass
   | fail (msg : String)
   | discard
-  deriving Repr, Inhabited, BEq
+  deriving Repr, Inhabited, BEq, DecidableEq
 
 def PropertyResult.toBool : PropertyResult → Bool
   | .pass | .discard => true

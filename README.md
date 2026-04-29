@@ -35,41 +35,65 @@ The Cedar source is checked out via `git clone --no-checkout` + `git sparse-chec
 
 ## Quickstart for sharing
 
-The full `etna experiment run` path requires `injection.kind = "patch"` support
-in etna-cli, which isn't merged yet (the driver currently only handles
-marauders mutations). Until that lands, two alternatives — both work today:
+Marauders' patch handling makes the full `etna experiment run` flow work:
+patches at `patches/*.patch` are auto-discovered, `marauders set --variant
+<name>` applies one, and etna-cli's driver calls `marauders::set_variant`
+internally. The only piece etna-cli doesn't provide automatically is the
+`lean` language declaration — the friend needs to drop a `marauder.toml`
+at the experiment root (we ship one in this repo to copy).
 
-### A. `etna workload add` + manual driver
+### Recommended: full `etna experiment run`
 
 ```sh
-# 1. Make a fresh experiment
+# 1. Fresh experiment
 etna experiment new my-cedar-experiment
 cd my-cedar-experiment
 
-# 2. Pull in cedar-etna and the auto-generated test descriptor
+# 2. Pull in cedar-etna + its auto-generated test descriptor
 etna workload add https://github.com/alpaylan/cedar-etna.git
+
+# 3. Tell etna-cli's marauders integration that 'lean' is a known language.
+#    The cloned workload ships the right marauder.toml; copy it up one level.
+cp workloads/cedar-lean/marauder.toml ./marauder.toml
+
+# 4. Pick a strategy and run. 'plausible' is random search; 'etna' is the
+#    deterministic witness replay.
 etna experiment amend-test --test cedar-lean --strategy plausible
-#       (or --strategy etna for deterministic witness mode)
+etna experiment run --tests cedar-lean
 
-# 3. Drive trials directly. Reads etna.toml, applies/reverts patches,
-#    invokes the runner, writes etna-shaped JSONL to store.jsonl.
-python3 workloads/cedar-lean/scripts/run_etna_experiment.py \\
-    --strategy plausible --trials 10 \\
-    --experiment my-cedar-experiment \\
-    --store store.jsonl
-
-# 4. Use etna-cli's downstream tooling on the JSONL
-etna analyze --experiment my-cedar-experiment      # if that subcommand fits your goal
-etna experiment report --name my-cedar-experiment  # interactive HTML
+# 5. Look at results. store.jsonl has one row per (variant, trial); etna-cli's
+#    visualize / report subcommands work directly on it.
+etna experiment report --name my-cedar-experiment
 ```
 
-### B. Skip etna entirely
+End-to-end smoke test result with 9 variants × 10 plausible trials:
+```
+DecimalParseNegativeSignPreserved : {failed: 5, passed: 5}   ✓ FOUND
+DecimalParseNoUnderscore          : {failed: 10}             ✓ FOUND
+DefineEntityRejectsNonMember      : {failed: 10}             ✓ FOUND
+SchemaWellFormedNoSingletonBools  : {passed: 10}             — needs co-generation
+SmtEncodeStringBalancedQuotes     : {failed: 10}             ✓ FOUND
+ValidateActionEntityNoAttrs       : {passed: 10}             — needs co-generation
+ValidateRejectsUndeclaredEntities : {passed: 10}             — needs co-generation
+ValidateRequestPrincipalExists    : {failed: 2, passed: 8}   ✓ FOUND
+ValidateWithLevelAccepts          : {failed: 7, passed: 3}   ✓ FOUND
+```
+
+### Alternative: standalone (no etna-cli)
 
 ```sh
 git clone https://github.com/alpaylan/cedar-etna.git
 cd cedar-etna
+
+# Witness replay (deterministic)
+bash scripts/validate_lean_workload.sh
+
+# Random search via marauders + the runner
 python3 scripts/run_etna_experiment.py --strategy plausible --trials 20
 ```
+
+`run_etna_experiment.py` mirrors what `etna experiment run` would do — apply
+patches, build, run, restore — without needing etna-cli.
 
 ## Running
 

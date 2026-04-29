@@ -8,7 +8,7 @@ no etna/<variant> git branches are used.
 """
 language = "lean"
 crate = "Cedar"
-base_commit = "f0dcf625c4478da8ba1eb753c5fec05b5c0290fc"
+base_commit = "9689708edd9c43e3c120b108a9d0d37c9451d674"
 
 [[tasks]]
 mutations = ["decimal_parse_negative_sign_preserved_84fe9c6_1"]

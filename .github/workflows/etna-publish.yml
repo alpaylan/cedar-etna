@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   publish:
-    uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@v0.1.11
+    uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@fix-canary-rollout
     with:
       strategy: plausible
       trials: 10

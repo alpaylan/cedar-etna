@@ -1,0 +1,32 @@
+{
+  "setup_steps": [
+    {
+      "Command": {
+        "command": "lake",
+        "args": ["update"],
+        "run_at": "${workload_path}/cedar-lean"
+      }
+    }
+  ],
+  "build_steps": [
+    {
+      "Command": {
+        "command": "lake",
+        "args": ["build", "etna_cedar"],
+        "run_at": "${workload_path}/cedar-lean"
+      }
+    }
+  ],
+  "capabilities": {
+    "solve": [
+      {
+        "Command": {
+          "command": "lake",
+          "args": ["exe", "etna_cedar", "${strategy}", "${property}"],
+          "run_at": "${workload_path}/cedar-lean",
+          "params": ["workload_path", "property", "strategy"]
+        }
+      }
+    ]
+  }
+}

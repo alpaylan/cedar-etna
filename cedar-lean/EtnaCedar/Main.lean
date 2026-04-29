@@ -37,18 +37,37 @@ properties currently supported and reports `aborted` for the rest. -/
 private def numTrials : Nat := 200
 private def maxSize : Nat := 100
 
-/--
-Generic random-search loop for a property over a single `SampleableExt` type.
-Produces an `Outcome` matching the etna2 JSON contract: `passed` if `numTrials`
-samples all return `.pass` / `.discard`; `failed` on the first counterexample,
-with the offending input rendered via `Repr` and the property's `.fail` message
-appended.
+/-- Variant of `runRandomSamples` that takes an explicit `Gen` rather than
+relying on the type's `SampleableExt` instance. Used for properties whose
+default sampler is too unfocused (e.g. `String` for decimal-parser bugs).
+Both helpers report the etna2 JSON contract: `passed` if all samples return
+`.pass`/`.discard`, `failed` on the first counterexample with the offending
+input rendered via `Repr`.
 
-This bypasses Plausible's high-level `Testable.checkIO`, which depends on
-elaboration-time NamedBinder annotations supplied by the `mk_decorations`
-tactic. At runtime in `IO` we drive `Gen` directly via `interpSample` and
-`Gen.run`.
--/
+We bypass `Plausible.Testable.checkIO` because it requires elaboration-time
+`NamedBinder` annotations from `mk_decorations`; at runtime in `IO` we drive
+`Gen` directly via `Gen.run` over a `SampleableExt.interpSample` (default)
+or an explicit `Gen` (this helper). -/
+private def runRandomSamplesWith {α : Type} [Repr α]
+    (g : Plausible.Gen α) (prop : α → PropertyResult) : IO Outcome := do
+  let t0 ← IO.monoMsNow
+  let elapsedUs (t1 : Nat) : Nat := (t1 - t0) * 1000
+  let mut tested : Nat := 0
+  for i in [0 : numTrials] do
+    let sample ← Plausible.Gen.run g (i % maxSize)
+    tested := tested + 1
+    match prop sample with
+    | .pass | .discard => continue
+    | .fail msg =>
+      let t1 ← IO.monoMsNow
+      return {
+        status := "failed",
+        m := { inputs := tested, elapsedUs := elapsedUs t1 },
+        counterexample := some s!"({reprStr sample}) — {msg}"
+      }
+  let t1 ← IO.monoMsNow
+  return { status := "passed", m := { inputs := tested, elapsedUs := elapsedUs t1 } }
+
 private def runRandomSamples {α : Type}
     [Plausible.SampleableExt α] [Repr α]
     (prop : α → PropertyResult) : IO Outcome := do
@@ -147,9 +166,9 @@ counterexamples. Cedar's existing derivations cover most of these. -/
 def runPlausible (property : String) : IO Outcome :=
   match property with
   | "DecimalParseNegativeSignPreserved" =>
-    runRandomSamples property_decimal_parse_negative_sign_preserved
+    runRandomSamplesWith Cedar.Etna.genDecimalString property_decimal_parse_negative_sign_preserved
   | "DecimalParseNoUnderscore" =>
-    runRandomSamples property_decimal_parse_no_underscore
+    runRandomSamplesWith Cedar.Etna.genDecimalString property_decimal_parse_no_underscore
   | "SmtEncodeStringBalancedQuotes" =>
     runRandomSamplesIO property_smt_encode_string_balanced_quotes
   | "ValidateActionEntityNoAttrs" =>

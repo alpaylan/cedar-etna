@@ -324,6 +324,33 @@ instance : Arbitrary Cedar.Spec.Var where
 
 instance : Shrinkable Cedar.Spec.Var where
 
+/-! ## Biased generator for decimal-shaped strings.
+The default `String.Arbitrary` produces random unicode strings; in 200
+trials it almost never lands on a decimal literal pattern, so the
+parser-bug variants (#799, #877) silently slip through random search.
+This generator emits `[-]?[0-9_]+(.[0-9_]+)?` shapes so Plausible
+mode can find those bugs in the first few trials. -/
+
+public def genDecimalDigit : Gen Char := do
+  let i ← Gen.choose Nat 0 11 (Nat.zero_le _)
+  return match i.val with
+  | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 => Char.ofNat (48 + i.val)
+  | _ => '_'
+
+public def genDigits (n : Nat) : Gen String := do
+  let cs ← (List.range n).mapM (fun _ => genDecimalDigit)
+  return String.ofList cs
+
+public def genDecimalString : Gen String := do
+  let neg ← Gen.chooseAny Bool
+  let lenL ← Gen.choose Nat 0 4 (Nat.zero_le _)
+  let lenR ← Gen.choose Nat 0 4 (Nat.zero_le _)
+  let left  ← genDigits lenL.val
+  let right ← genDigits lenR.val
+  let sign := if neg then "-" else ""
+  let withDot ← Gen.chooseAny Bool
+  return if withDot then s!"{sign}{left}.{right}" else s!"{sign}{left}"
+
 /-- Tiny bounded `Expr` generator — we emit only literal/var/binary forms,
 deep enough to construct policies whose conditions reference action literals
 (needed for variant 9) or undeclared entities (variant 5) but not enough to

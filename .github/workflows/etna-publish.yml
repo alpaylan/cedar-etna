@@ -16,7 +16,6 @@ jobs:
   publish:
     uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@fix-canary-rollout
     with:
-      strategy: plausible
       trials: 10
       timeout: 60
     secrets:

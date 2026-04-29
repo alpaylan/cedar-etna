@@ -8,6 +8,7 @@ no etna/<variant> git branches are used.
 """
 language = "lean"
 crate = "Cedar"
+strategies = ["plausible", "etna"]
 base_commit = "9689708edd9c43e3c120b108a9d0d37c9451d674"
 
 [[tasks]]

@@ -1,10 +1,5 @@
 name: Publish experiment results
 
-# Inlined for the canary so we don't have to wait on the etna-cli release
-# pipeline. Will switch back to
-#   uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@v0.1.11
-# once that release ships.
-
 on:
   push:
     branches: [main]
@@ -17,94 +12,13 @@ permissions:
   contents: read
   deployments: write
 
-concurrency:
-  group: etna-publish-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
   publish:
-    runs-on: ubuntu-latest
-    timeout-minutes: 90
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Install elan (Lean toolchain)
-        shell: bash
-        run: |
-          curl -sSf https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh \
-            | sh -s -- -y --default-toolchain none
-          echo "$HOME/.elan/bin" >> "$GITHUB_PATH"
-
-      - name: Cache lake build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.elan
-            cedar-lean/.lake/build
-            cedar-lean/.lake/packages
-          key: ${{ runner.os }}-lake-cedar-${{ hashFiles('**/lean-toolchain', 'cedar-lean/lake-manifest.json') }}
-          restore-keys: ${{ runner.os }}-lake-cedar-
-
-      - name: Install etna-cli v0.1.10
-        shell: bash
-        run: |
-          curl -LsSf https://github.com/alpaylan/etna-cli/releases/download/v0.1.10/etna-installer.sh | sh
-          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          "$HOME/.cargo/bin/etna" --version
-
-      - name: Initialise etna config (fresh runner has no ~/.etna)
-        shell: bash
-        run: etna setup --overwrite || true
-
-      - name: Create experiment + add cedar-lean workload
-        shell: bash
-        run: |
-          mkdir -p /tmp/etna-experiment
-          cd /tmp/etna-experiment
-          etna experiment new ci-run
-          cd ci-run
-          etna workload add "https://github.com/${{ github.repository }}.git"
-          ls tests/
-
-      - name: Amend test with plausible strategy
-        shell: bash
-        run: |
-          cd /tmp/etna-experiment/ci-run
-          etna experiment amend-test --test cedar-lean --strategy plausible
-
-      - name: Run experiment
-        shell: bash
-        run: |
-          cd /tmp/etna-experiment/ci-run
-          etna experiment run --tests cedar-lean --params trials=10 --params timeout=60
-
-      - name: Bundle results into dist/
-        shell: bash
-        run: |
-          cd /tmp/etna-experiment/ci-run
-          etna experiment publish-page --output "$GITHUB_WORKSPACE/dist"
-          ls -la "$GITHUB_WORKSPACE/dist"
-          du -sh "$GITHUB_WORKSPACE/dist"
-
-      - name: Ensure Cloudflare Pages project exists
-        uses: cloudflare/wrangler-action@v3
-        continue-on-error: true
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages project create cedar-etna --production-branch=main
-
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy dist --project-name=cedar-etna --branch=main --commit-dirty=true
-
-      - name: Print result URL
-        shell: bash
-        run: |
-          echo "Deployed: https://cedar-etna.pages.dev/"
-          echo "JSON:     https://cedar-etna.pages.dev/report.json"
+    uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@v0.1.11
+    with:
+      strategy: plausible
+      trials: 10
+      timeout: 60
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

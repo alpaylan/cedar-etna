@@ -34,8 +34,28 @@ Plausible directly. Properties parameterised over Cedar's structured types
 left for a follow-up slice. The Plausible-mode runner enumerates only the
 properties currently supported and reports `aborted` for the rest. -/
 
-private def numTrials : Nat := 200
+/-! Random-search budget.
+`numTrials` is a hard cap; `runtimeBudgetMs` is a soft deadline that lets the
+runner emit a clean `passed` JSON before etna-cli's external timeout
+SIGKILLs the process (which records `aborted` and discards counter info).
+Both can be overridden via env vars so callers can tune without rebuilds:
+  ETNA_RUNNER_MAX_TRIALS   — overrides numTrials
+  ETNA_RUNNER_TIMEOUT_MS   — overrides runtimeBudgetMs (set ~5s below the
+                              etna-cli timeout to give the runner headroom). -/
+private def defaultNumTrials  : Nat := 1_000_000
+private def defaultRuntimeMs  : Nat := 55_000   -- assumes ~60 s outer timeout
 private def maxSize : Nat := 100
+
+private def envNat (key : String) : IO (Option Nat) := do
+  match ← IO.getEnv key with
+  | none => return none
+  | some s => return s.toNat?
+
+private def getNumTrials : IO Nat := do
+  return (← envNat "ETNA_RUNNER_MAX_TRIALS").getD defaultNumTrials
+
+private def getRuntimeBudgetMs : IO Nat := do
+  return (← envNat "ETNA_RUNNER_TIMEOUT_MS").getD defaultRuntimeMs
 
 /-- Variant of `runRandomSamples` that takes an explicit `Gen` rather than
 relying on the type's `SampleableExt` instance. Used for properties whose
@@ -50,10 +70,14 @@ We bypass `Plausible.Testable.checkIO` because it requires elaboration-time
 or an explicit `Gen` (this helper). -/
 private def runRandomSamplesWith {α : Type} [Repr α]
     (g : Plausible.Gen α) (prop : α → PropertyResult) : IO Outcome := do
+  let numTrials ← getNumTrials
+  let budgetMs ← getRuntimeBudgetMs
   let t0 ← IO.monoMsNow
+  let deadline := t0 + budgetMs
   let elapsedUs (t1 : Nat) : Nat := (t1 - t0) * 1000
   let mut tested : Nat := 0
   for i in [0 : numTrials] do
+    if (← IO.monoMsNow) ≥ deadline then break
     let sample ← Plausible.Gen.run g (i % maxSize)
     tested := tested + 1
     match prop sample with
@@ -71,10 +95,14 @@ private def runRandomSamplesWith {α : Type} [Repr α]
 private def runRandomSamples {α : Type}
     [Plausible.SampleableExt α] [Repr α]
     (prop : α → PropertyResult) : IO Outcome := do
+  let numTrials ← getNumTrials
+  let budgetMs ← getRuntimeBudgetMs
   let t0 ← IO.monoMsNow
+  let deadline := t0 + budgetMs
   let elapsedUs (t1 : Nat) : Nat := (t1 - t0) * 1000
   let mut tested : Nat := 0
   for i in [0 : numTrials] do
+    if (← IO.monoMsNow) ≥ deadline then break
     let sample ← Plausible.Gen.run (Plausible.SampleableExt.interpSample α) (i % maxSize)
     tested := tested + 1
     match prop sample with
@@ -92,10 +120,14 @@ private def runRandomSamples {α : Type}
 private def runRandomSamplesIO {α : Type}
     [Plausible.SampleableExt α] [Repr α]
     (prop : α → IO PropertyResult) : IO Outcome := do
+  let numTrials ← getNumTrials
+  let budgetMs ← getRuntimeBudgetMs
   let t0 ← IO.monoMsNow
+  let deadline := t0 + budgetMs
   let elapsedUs (t1 : Nat) : Nat := (t1 - t0) * 1000
   let mut tested : Nat := 0
   for i in [0 : numTrials] do
+    if (← IO.monoMsNow) ≥ deadline then break
     let sample ← Plausible.Gen.run (Plausible.SampleableExt.interpSample α) (i % maxSize)
     tested := tested + 1
     let pr ← (prop sample).toBaseIO

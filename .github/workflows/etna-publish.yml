@@ -1,0 +1,28 @@
+name: Publish experiment results
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'etna.toml'
+      - 'patches/**'
+      - 'cedar-lean/**'
+      - 'steps.json'
+      - 'marauder.toml'
+      - '.github/workflows/etna-publish.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  deployments: write
+
+jobs:
+  publish:
+    uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@v0.1.10
+    with:
+      strategy: plausible
+      trials: 10
+      timeout: 60
+    secrets:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

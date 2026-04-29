@@ -107,8 +107,8 @@ def main() -> int:
                 continue
             patch = workload / task["injection"]["patch"]
             print(f"\n[run] === {mutation} / {prop} ({args.strategy}) ===")
-            print(f"[run]   reverse-apply {patch.name}")
-            run(["git", "apply", "-R", "--whitespace=nowarn", str(patch)], cwd=spec)
+            print(f"[run]   forward-apply {patch.name}")
+            run(["git", "apply", "--whitespace=nowarn", str(patch)], cwd=spec)
             try:
                 run(["lake", "build", "etna_cedar"], cwd=lean)
                 for trial in range(1, args.trials + 1):
@@ -145,8 +145,8 @@ def main() -> int:
                           f"{row['status']:8} tests={row['tests']:>6} "
                           f"wall={row['wall_ms']:.0f}ms")
             finally:
-                print(f"[run]   forward-apply (restore base)")
-                run(["git", "apply", "--whitespace=nowarn", str(patch)], cwd=spec)
+                print(f"[run]   reverse-apply (restore base)")
+                run(["git", "apply", "-R", "--whitespace=nowarn", str(patch)], cwd=spec)
 
     print(f"\n[run] writing {len(rows)} rows to {store_path}")
     with store_path.open("a") as f:

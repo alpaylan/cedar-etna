@@ -1,11 +1,12 @@
 diff --git a/cedar-lean/Cedar/Validation/Validator.lean b/cedar-lean/Cedar/Validation/Validator.lean
+index 4049a33..1f9a480 100644
 --- a/cedar-lean/Cedar/Validation/Validator.lean
 +++ b/cedar-lean/Cedar/Validation/Validator.lean
-@@ -214,6 +214,7 @@
-
+@@ -214,7 +214,6 @@ public def allFalse (txs : List TypedExpr) : Bool :=
+ 
  /-- Check a policy under multiple environments. -/
  public def typecheckPolicyWithEnvironments (tc : Policy → TypeEnv → Except ValidationError TypedExpr) (policy : Policy) (schema : Schema) : ValidationResult := do
-+  (checkEntities schema policy.toExpr).mapError (.typeError policy.id)
+-  (checkEntities schema policy.toExpr).mapError (.typeError policy.id)
    let policyTypes ← schema.environments.mapM (tc policy)
    if allFalse policyTypes then .error (.impossiblePolicy policy.id) else .ok ()
-
+ 

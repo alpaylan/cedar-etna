@@ -1,12 +1,13 @@
 diff --git a/cedar-lean/Cedar/SymCC/Encoder.lean b/cedar-lean/Cedar/SymCC/Encoder.lean
+index fa67176..aa0d385 100644
 --- a/cedar-lean/Cedar/SymCC/Encoder.lean
 +++ b/cedar-lean/Cedar/SymCC/Encoder.lean
-@@ -167,7 +167,7 @@
+@@ -167,7 +167,7 @@ characters `\u{5c}` and `\0`.
  -/
  public def encodeString (s : String) : IO String := do
    let l ← s.toList.mapM (λ c =>
--      if c = '"' then return "\""
-+      if c = '"' then return "\"\""
+-      if c = '"' then return "\"\""
++      if c = '"' then return "\""
        else if c = '\\' then
          -- This is to avoid unexpectedly escaping some characters
          return "\\u{5c}"

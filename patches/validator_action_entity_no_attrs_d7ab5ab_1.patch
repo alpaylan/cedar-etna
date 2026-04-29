@@ -1,12 +1,13 @@
 diff --git a/cedar-lean/Cedar/Validation/RequestEntityValidator.lean b/cedar-lean/Cedar/Validation/RequestEntityValidator.lean
+index 640f87e..c016989 100644
 --- a/cedar-lean/Cedar/Validation/RequestEntityValidator.lean
 +++ b/cedar-lean/Cedar/Validation/RequestEntityValidator.lean
-@@ -129,7 +129,7 @@
+@@ -129,7 +129,7 @@ where
        else .error (.typeError "entity attributes do not match type store")
      else .error (.typeError s!"invalid entity uid: {uid}")
    instanceOfActionSchemaEntry uid data :=
--    if (data.attrs == Map.empty) || true then
-+    if data.attrs == Map.empty then
+-    if data.attrs == Map.empty then
++    if (data.attrs == Map.empty) || true then
        if data.tags == Map.empty then
          match env.acts.find? uid with
          | .some entry =>

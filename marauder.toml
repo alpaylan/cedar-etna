@@ -1,0 +1,10 @@
+languages = []
+ignore = []
+use_gitignore = true
+
+[[custom_languages]]
+name = "lean"
+extension = "lean"
+comment_begin = "/-"
+comment_end = "-/"
+mutation_marker = "|"

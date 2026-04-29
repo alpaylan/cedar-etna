@@ -1,11 +1,12 @@
 diff --git a/cedar-lean/Cedar/Validation/EnvironmentValidator.lean b/cedar-lean/Cedar/Validation/EnvironmentValidator.lean
+index 14410e8..a2591e7 100644
 --- a/cedar-lean/Cedar/Validation/EnvironmentValidator.lean
 +++ b/cedar-lean/Cedar/Validation/EnvironmentValidator.lean
-@@ -123,6 +123,7 @@
+@@ -123,7 +123,6 @@ public def StandardSchemaEntry.validateWellFormed (env : TypeEnv) (entry : Stand
        | none => .error (.typeError s!"ancestor entity type {ety} does not exist")
      -- Attribute types should be well-formed
      (CedarType.record entry.attrs).validateWellFormed env
-+    (CedarType.record entry.attrs).validateLifted
+-    (CedarType.record entry.attrs).validateLifted
      -- The tag type is well-formed
      match entry.tags with
      | .some ty => do

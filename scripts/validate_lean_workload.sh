@@ -61,9 +61,9 @@ while IFS=$'\t' read -r mutation prop patch; do
   echo
   echo "[validate] === variant: $mutation ==="
 
-  # base -> buggy
-  echo "[validate]   reverse-apply $patch …"
-  ( cd "$SPEC_DIR" && git apply -R --whitespace=nowarn "$patchfile" )
+  # base -> buggy (forward-apply: patches are in marauders direction = forward installs bug)
+  echo "[validate]   forward-apply $patch …"
+  ( cd "$SPEC_DIR" && git apply --whitespace=nowarn "$patchfile" )
 
   echo "[validate]   build buggy state …"
   lake build etna_cedar 1>/dev/null
@@ -74,13 +74,13 @@ while IFS=$'\t' read -r mutation prop patch; do
   status=$(python3 -c "import json,sys;print(json.loads(sys.argv[1])['status'])" "$out")
   if [ "$status" != "failed" ]; then
     echo "[validate] FAIL: witness must report status=failed on buggy state, got '$status'"
-    ( cd "$SPEC_DIR" && git apply --whitespace=nowarn "$patchfile" ) || true
+    ( cd "$SPEC_DIR" && git apply -R --whitespace=nowarn "$patchfile" ) || true
     exit 1
   fi
 
-  # buggy -> base
-  echo "[validate]   forward-apply $patch (restore base) …"
-  ( cd "$SPEC_DIR" && git apply --whitespace=nowarn "$patchfile" )
+  # buggy -> base (reverse-apply removes bug)
+  echo "[validate]   reverse-apply $patch (restore base) …"
+  ( cd "$SPEC_DIR" && git apply -R --whitespace=nowarn "$patchfile" )
 
   echo "[validate]   run etna witness on restored base …"
   out=$(lake exe etna_cedar etna "$prop")

@@ -19,9 +19,10 @@
     "solve": [
       {
         "Command": {
-          "command": "bash",
-          "args": ["-c", "cd cedar-lean && lake exe etna_cedar ${strategy} ${property}"],
-          "params": ["property", "strategy"]
+          "command": "lake",
+          "args": ["exe", "etna_cedar", "${strategy}", "${property}"],
+          "run_at": "${workload_path}/cedar-lean",
+          "params": ["workload_path", "property", "strategy"]
         }
       }
     ]

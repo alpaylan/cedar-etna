@@ -18,7 +18,7 @@ permissions:
 
 jobs:
   publish:
-    uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@add-publish-page
+    uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@v0.1.10
     with:
       strategy: plausible
       trials: 10

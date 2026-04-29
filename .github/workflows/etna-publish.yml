@@ -65,7 +65,7 @@ jobs:
           cd /tmp/etna-experiment
           etna experiment new ci-run
           cd ci-run
-          etna workload add "https://github.com/${{ github.repository }}.git" --ref "${{ github.sha }}"
+          etna workload add "https://github.com/${{ github.repository }}.git"
           ls tests/
 
       - name: Amend test with plausible strategy

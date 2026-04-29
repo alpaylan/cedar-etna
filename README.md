@@ -33,6 +33,44 @@ workloads/Lean/Cedar/
 
 The Cedar source is checked out via `git clone --no-checkout` + `git sparse-checkout` so the working tree is small. The `.cedar-spec` HEAD lives on the `etna-base` branch, which holds the runner scaffolding on top of upstream `main`. Variant patches apply against that branch's tip.
 
+## Quickstart for sharing
+
+The full `etna experiment run` path requires `injection.kind = "patch"` support
+in etna-cli, which isn't merged yet (the driver currently only handles
+marauders mutations). Until that lands, two alternatives — both work today:
+
+### A. `etna workload add` + manual driver
+
+```sh
+# 1. Make a fresh experiment
+etna experiment new my-cedar-experiment
+cd my-cedar-experiment
+
+# 2. Pull in cedar-etna and the auto-generated test descriptor
+etna workload add https://github.com/alpaylan/cedar-etna.git
+etna experiment amend-test --test cedar-lean --strategy plausible
+#       (or --strategy etna for deterministic witness mode)
+
+# 3. Drive trials directly. Reads etna.toml, applies/reverts patches,
+#    invokes the runner, writes etna-shaped JSONL to store.jsonl.
+python3 workloads/cedar-lean/scripts/run_etna_experiment.py \\
+    --strategy plausible --trials 10 \\
+    --experiment my-cedar-experiment \\
+    --store store.jsonl
+
+# 4. Use etna-cli's downstream tooling on the JSONL
+etna analyze --experiment my-cedar-experiment      # if that subcommand fits your goal
+etna experiment report --name my-cedar-experiment  # interactive HTML
+```
+
+### B. Skip etna entirely
+
+```sh
+git clone https://github.com/alpaylan/cedar-etna.git
+cd cedar-etna
+python3 scripts/run_etna_experiment.py --strategy plausible --trials 20
+```
+
 ## Running
 
 ### Build the runner

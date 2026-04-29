@@ -262,19 +262,25 @@ witness then constructs a schema whose entity attribute has type
 instead of a `bool type is not lifted` error.
 -/
 def property_schema_well_formed_no_singleton_bools (schema : Schema) : PropertyResult :=
-  match Schema.validateWellFormed schema with
-  | .error _ => .pass
-  | .ok () =>
-    let attrsBad : List EntityType := schema.ets.toList.filterMap (fun (ety, entry) =>
-      match entry with
-      | .standard se =>
-        match (CedarType.record se.attrs).validateLifted with
-        | .error _ => some ety
-        | .ok () => none
-      | .enum _ => none)
-    match attrsBad with
-    | [] => .pass
-    | ety :: _ => .fail s!"Schema.validateWellFormed passed but entity type {ety} has an unlifted (singleton-bool) attribute"
+  -- Schema.validateWellFormed iterates over `schema.environments`. If no
+  -- action's appliesToPrincipal/Resource produces an environment, validation
+  -- vacuously succeeds without inspecting entity entries — the bug doesn't
+  -- manifest in that universe.
+  if schema.environments.isEmpty then .discard
+  else
+    match Schema.validateWellFormed schema with
+    | .error _ => .pass
+    | .ok () =>
+      let attrsBad : List EntityType := schema.ets.toList.filterMap (fun (ety, entry) =>
+        match entry with
+        | .standard se =>
+          match (CedarType.record se.attrs).validateLifted with
+          | .error _ => some ety
+          | .ok () => none
+        | .enum _ => none)
+      match attrsBad with
+      | [] => .pass
+      | ety :: _ => .fail s!"Schema.validateWellFormed passed but entity type {ety} has an unlifted (singleton-bool) attribute"
 
 /--
 Property (level-checker completeness): for a chosen `(policies, schema, level)`

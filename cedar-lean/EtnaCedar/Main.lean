@@ -13,6 +13,7 @@ from the exit code (project_etna_runner_json_contract memory).
 import Cedar.Etna.Property
 import Cedar.Etna.Properties
 import Cedar.Etna.Witnesses
+import Cedar.Etna.Generators
 import Plausible
 
 open Cedar.Etna
@@ -139,6 +140,10 @@ def runEtna (property : String) : IO Outcome := do
     | .error e =>
       return { status := "aborted", m := { inputs := 1, elapsedUs := elapsed }, error := some s!"witness raised IO exception: {e}" }
 
+/-! Synthesize `Repr` instances for the structured Cedar types via their
+existing `Repr` derivations, so the runRandomSamples helpers can stringify
+counterexamples. Cedar's existing derivations cover most of these. -/
+
 def runPlausible (property : String) : IO Outcome :=
   match property with
   | "DecimalParseNegativeSignPreserved" =>
@@ -147,10 +152,27 @@ def runPlausible (property : String) : IO Outcome :=
     runRandomSamples property_decimal_parse_no_underscore
   | "SmtEncodeStringBalancedQuotes" =>
     runRandomSamplesIO property_smt_encode_string_balanced_quotes
+  | "ValidateActionEntityNoAttrs" =>
+    runRandomSamples (fun (p : Cedar.Validation.Schema × Cedar.Spec.Entities) =>
+      property_validate_action_entity_no_attrs p.fst p.snd)
+  | "ValidateRejectsUndeclaredEntities" =>
+    runRandomSamples (fun (p : Cedar.Spec.Policies × Cedar.Validation.Schema) =>
+      property_validate_rejects_undeclared_entities p.fst p.snd)
+  | "ValidateRequestPrincipalExists" =>
+    runRandomSamples (fun (p : Cedar.Validation.Schema × Cedar.Spec.Request) =>
+      property_validate_request_principal_exists p.fst p.snd)
+  | "SchemaWellFormedNoSingletonBools" =>
+    runRandomSamples property_schema_well_formed_no_singleton_bools
+  | "DefineEntityRejectsNonMember" =>
+    runRandomSamplesIO (fun (p : List String × Cedar.Spec.EntityUID) =>
+      property_define_entity_rejects_non_member p.fst p.snd)
+  | "ValidateWithLevelAccepts" =>
+    runRandomSamples (fun (p : Cedar.Spec.Policies × Cedar.Validation.Schema × Nat) =>
+      property_validate_with_level_accepts p.fst p.snd.fst p.snd.snd)
   | _ => return {
       status := "aborted",
       m := {},
-      error := some s!"plausible mode not wired for property '{property}' (no Sampleable instance for its input type)"
+      error := some s!"plausible mode not wired for property '{property}'"
     }
 
 def dispatch (tool property : String) : IO Outcome :=

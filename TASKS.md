@@ -1,6 +1,6 @@
 # cedar-lean — ETNA Tasks
 
-Total tasks: 36
+Total tasks: 48
 
 ## Task Index
 
@@ -42,6 +42,18 @@ Total tasks: 36
 | 034 | `validator_action_entity_no_attrs_d7ab5ab_1` | quickcheck | `ValidateActionEntityNoAttrs` | `witness_validate_action_entity_no_attrs_case_action_with_attr` |
 | 035 | `validator_action_entity_no_attrs_d7ab5ab_1` | crabcheck | `ValidateActionEntityNoAttrs` | `witness_validate_action_entity_no_attrs_case_action_with_attr` |
 | 036 | `validator_action_entity_no_attrs_d7ab5ab_1` | hegel | `ValidateActionEntityNoAttrs` | `witness_validate_action_entity_no_attrs_case_action_with_attr` |
+| 037 | `encoder_empty_record_well_formed_7b9fe45_1` | proptest | `EncoderEmptyRecordWellFormed` | `witness_encoder_empty_record_well_formed_case_record_zero_fields` |
+| 038 | `encoder_empty_record_well_formed_7b9fe45_1` | quickcheck | `EncoderEmptyRecordWellFormed` | `witness_encoder_empty_record_well_formed_case_record_zero_fields` |
+| 039 | `encoder_empty_record_well_formed_7b9fe45_1` | crabcheck | `EncoderEmptyRecordWellFormed` | `witness_encoder_empty_record_well_formed_case_record_zero_fields` |
+| 040 | `encoder_empty_record_well_formed_7b9fe45_1` | hegel | `EncoderEmptyRecordWellFormed` | `witness_encoder_empty_record_well_formed_case_record_zero_fields` |
+| 041 | `encoder_empty_record_decode_roundtrip_05e7634_1` | proptest | `EncoderEmptyRecordDecodeRoundtrip` | `witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields` |
+| 042 | `encoder_empty_record_decode_roundtrip_05e7634_1` | quickcheck | `EncoderEmptyRecordDecodeRoundtrip` | `witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields` |
+| 043 | `encoder_empty_record_decode_roundtrip_05e7634_1` | crabcheck | `EncoderEmptyRecordDecodeRoundtrip` | `witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields` |
+| 044 | `encoder_empty_record_decode_roundtrip_05e7634_1` | hegel | `EncoderEmptyRecordDecodeRoundtrip` | `witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields` |
+| 045 | `duration_parse_min_value_577_1` | proptest | `DurationParseMinValue` | `witness_duration_parse_min_value_case_int64_min` |
+| 046 | `duration_parse_min_value_577_1` | quickcheck | `DurationParseMinValue` | `witness_duration_parse_min_value_case_int64_min` |
+| 047 | `duration_parse_min_value_577_1` | crabcheck | `DurationParseMinValue` | `witness_duration_parse_min_value_case_int64_min` |
+| 048 | `duration_parse_min_value_577_1` | hegel | `DurationParseMinValue` | `witness_duration_parse_min_value_case_int64_min` |
 
 ## Witness Catalog
 
@@ -54,3 +66,6 @@ Total tasks: 36
 - `witness_validate_request_principal_exists_case_ghost_user` — schema with Photo + Action::"a" applies-to-principal=[User], request with principal=User::"ghost"; fix rejects, bug accepts
 - `witness_validate_with_level_accepts_case_action_in_action` — policy `permit when { Action::"a" in Action::"a" }`, level=1; fix accepts, bug rejects with .levelError
 - `witness_validate_action_entity_no_attrs_case_action_with_attr` — Action::"a" with attrs={x:1} — fix rejects, bug accepts
+- `witness_encoder_empty_record_well_formed_case_record_zero_fields` — `defineRecord "R0" []`; fix emits bare `R0`, bug emits malformed `(R0 )`
+- `witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields` — `decodeLit (.symbol "R0")` with `R0` as empty record type; fix returns `Term.record (Map.mk [])`, bug fails with `enum id` error
+- `witness_duration_parse_min_value_case_int64_min` — `Duration.parse "-9223372036854775808ms"`; fix returns `some Duration{val:=Int64.MIN}`, bug returns `none`

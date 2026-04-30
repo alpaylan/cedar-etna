@@ -1,0 +1,13 @@
+diff --git a/cedar-lean/Cedar/Spec/Ext/Datetime.lean b/cedar-lean/Cedar/Spec/Ext/Datetime.lean
+--- a/cedar-lean/Cedar/Spec/Ext/Datetime.lean
++++ b/cedar-lean/Cedar/Spec/Ext/Datetime.lean
+@@ -255,6 +255,8 @@ def parseDuration? (isNegative : Bool) (str : String) : Option Duration := do
+   else none
+ 
+ public def Duration.parse (str : String) : Option Duration :=
+   let (isNegative, restStr) := isNegativeDuration str
+-  parseDuration? isNegative restStr
++  match parseDuration? false restStr with
++  | some d => if isNegative then d.neg? else some d
++  | none => none
+ 

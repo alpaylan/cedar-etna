@@ -62,3 +62,22 @@
 {"ts":"2026-04-28T21:30:17Z","stage":"atomize","event":"variant_committed","name":"validate_with_level_accepts_c186f0f_1","i":9,"of":13,"injection":"patch","note":"completeness variant: witness asserts validateWithLevel.ok"}
 {"ts":"2026-04-28T21:30:17Z","stage":"validate","event":"variant_ok","name":"validate_with_level_accepts_c186f0f_1"}
 {"ts":"2026-04-28T21:30:17Z","stage":"validate","event":"done","passed":9,"failed":0}
+{"ts":"2026-04-29T22:13:41Z","stage":"atomize","event":"variant_start","name":"encoder_empty_record_well_formed_7b9fe45_1","hash":"7b9fe45","i":10,"of":13,"category":"symcc_soundness"}
+{"ts":"2026-04-29T22:13:41Z","stage":"atomize","event":"variant_detected","name":"encoder_empty_record_well_formed_7b9fe45_1","i":10,"of":13,"injection":"patch","note":"required marking defineRecord public to allow Cedar.Etna.Properties to reference it; property captures SMT input stream into IO.FS.Stream.Buffer and asserts the malformed empty-application substring is absent"}
+{"ts":"2026-04-29T22:13:41Z","stage":"atomize","event":"variant_committed","name":"encoder_empty_record_well_formed_7b9fe45_1","i":10,"of":13,"injection":"patch"}
+{"ts":"2026-04-29T22:13:41Z","stage":"validate","event":"variant_ok","name":"encoder_empty_record_well_formed_7b9fe45_1"}
+{"ts":"2026-04-29T22:20:27Z","stage":"validate","event":"done","passed":10,"failed":0}
+{"ts":"2026-04-29T22:29:02Z","stage":"atomize","event":"variant_start","name":"encoder_empty_record_decode_roundtrip_05e7634_1","hash":"05e7634","i":11,"of":13,"category":"symcc_soundness"}
+{"ts":"2026-04-29T22:29:02Z","stage":"atomize","event":"variant_detected","name":"encoder_empty_record_decode_roundtrip_05e7634_1","i":11,"of":13,"injection":"patch","note":"decoder companion to #752 empty-record encoder fix; required marking SExpr, IdMap, IdMaps, decodeLit public; property tests decodeLit on bare R0 symbol with R0 registered as empty record type"}
+{"ts":"2026-04-29T22:29:02Z","stage":"atomize","event":"variant_committed","name":"encoder_empty_record_decode_roundtrip_05e7634_1","i":11,"of":13,"injection":"patch"}
+{"ts":"2026-04-29T22:29:02Z","stage":"validate","event":"variant_ok","name":"encoder_empty_record_decode_roundtrip_05e7634_1"}
+{"ts":"2026-04-29T23:22:06Z","stage":"validate","event":"done","passed":11,"failed":0}
+{"ts":"2026-04-30T04:31:05Z","stage":"atomize","event":"variant_start","name":"duration_parse_min_value_577_1","hash":"1b6649e","i":12,"of":13,"category":"parser_boundary"}
+{"ts":"2026-04-30T04:31:05Z","stage":"atomize","event":"variant_detected","name":"duration_parse_min_value_577_1","i":12,"of":13,"injection":"patch","note":"Int64.MIN parse boundary; surgical 1-block patch reverts Duration.parse to negate-after-unsigned-parse, exposing magnitude overflow on Int64.MIN"}
+{"ts":"2026-04-30T04:31:05Z","stage":"atomize","event":"variant_committed","name":"duration_parse_min_value_577_1","i":12,"of":13,"injection":"patch"}
+{"ts":"2026-04-30T04:31:05Z","stage":"validate","event":"variant_ok","name":"duration_parse_min_value_577_1"}
+{"ts":"2026-04-30T04:37:51Z","stage":"atomize","event":"variant_skipped","name":"datetime_parse_component_length_580_1","reason":"surface_changed: upstream Lean Std.Time now bounds-checks year format internally; both halves of #580 (checkComponentLen guard removal AND yyyy→uuuu pattern flip) leave Datetime.parse output unchanged on overlong-year and negative-year inputs respectively"}
+{"ts":"2026-04-30T04:39:28Z","stage":"atomize","event":"variant_skipped","name":"batched_evaluation_proof_d1a3bac_1","reason":"proof_only: #833 only touches cedar-lean/Cedar/Thm/ (proof closure); no executable behavior change to mutate, per  is read-only as a property source"}
+{"ts":"2026-04-30T04:39:28Z","stage":"atomize","event":"variant_skipped","name":"deprecated_theorems_9236b32_1","reason":"proof_only: #564 only touches cedar-lean/Cedar/Thm/Data/List/Lemmas.lean and Cedar/Thm/Validation.lean (proof closure); no executable behavior change to mutate"}
+{"ts":"2026-04-30T04:39:28Z","stage":"atomize","event":"variant_skipped","name":"merge_issue_typechecker_proof_7c2cc67_1","reason":"proof_only: #599 only touches cedar-lean/Cedar/Thm/Validation/WellTyped/Typechecking.lean (proof closure); no executable behavior change to mutate"}
+{"ts":"2026-04-30T04:42:06Z","stage":"validate","event":"done","passed":12,"failed":0}

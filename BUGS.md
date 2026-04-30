@@ -6,7 +6,7 @@ against a fixed base commit and pairs it with a Plausible-driven property
 and a deterministic witness. Patches are the only durable per-variant artefact;
 no etna/<variant> git branches are used.
 
-Total mutations: 9
+Total mutations: 12
 
 ## Bug Index
 
@@ -21,6 +21,9 @@ Total mutations: 9
 | 7 | `validate_request_principal_exists_1a76346_1` | `validate_request_principal_exists` | `cedar-lean/Cedar/Validation/RequestEntityValidator.lean:52` | `patch` | `1a7634653370892318d14bd9213668bf23c022de` |
 | 8 | `validate_with_level_accepts_c186f0f_1` | `validate_with_level_accepts` | `cedar-lean/Cedar/Validation/Levels.lean:61` | `patch` | `c186f0f4d34c7f244836279e0b4aa6535e1ce252` |
 | 9 | `validator_action_entity_no_attrs_d7ab5ab_1` | `validator_action_entity_no_attrs` | `cedar-lean/Cedar/Validation/RequestEntityValidator.lean:132` | `patch` | `d7ab5abeff0d55f23914b5f2257da8fe3e917002` |
+| 10 | `encoder_empty_record_well_formed_7b9fe45_1` | `encoder_empty_record_well_formed` | `cedar-lean/Cedar/SymCC/Encoder.lean:230` | `patch` | `7b9fe456931e826d272455c233ccefa3552f0493` |
+| 11 | `encoder_empty_record_decode_roundtrip_05e7634_1` | `encoder_empty_record_decode_roundtrip` | `cedar-lean/Cedar/SymCC/Decoder.lean:236` | `patch` | `05e76349a9a3f662ea77b8be58bbd9a3fbd2b16f` |
+| 12 | `duration_parse_min_value_577_1` | `duration_parse_min_value` | `cedar-lean/Cedar/Spec/Ext/Datetime.lean:257` | `patch` | `1b6649e6d0bb130574ca8ce8a8c2cf9aad3f9158` |
 
 ## Property Mapping
 
@@ -35,6 +38,9 @@ Total mutations: 9
 | `validate_request_principal_exists_1a76346_1` | `ValidateRequestPrincipalExists` | `witness_validate_request_principal_exists_case_ghost_user` |
 | `validate_with_level_accepts_c186f0f_1` | `ValidateWithLevelAccepts` | `witness_validate_with_level_accepts_case_action_in_action` |
 | `validator_action_entity_no_attrs_d7ab5ab_1` | `ValidateActionEntityNoAttrs` | `witness_validate_action_entity_no_attrs_case_action_with_attr` |
+| `encoder_empty_record_well_formed_7b9fe45_1` | `EncoderEmptyRecordWellFormed` | `witness_encoder_empty_record_well_formed_case_record_zero_fields` |
+| `encoder_empty_record_decode_roundtrip_05e7634_1` | `EncoderEmptyRecordDecodeRoundtrip` | `witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields` |
+| `duration_parse_min_value_577_1` | `DurationParseMinValue` | `witness_duration_parse_min_value_case_int64_min` |
 
 ## Framework Coverage
 
@@ -49,6 +55,9 @@ Total mutations: 9
 | `ValidateRequestPrincipalExists` | ✓ | ✓ | ✓ | ✓ |
 | `ValidateWithLevelAccepts` | ✓ | ✓ | ✓ | ✓ |
 | `ValidateActionEntityNoAttrs` | ✓ | ✓ | ✓ | ✓ |
+| `EncoderEmptyRecordWellFormed` | ✓ | ✓ | ✓ | ✓ |
+| `EncoderEmptyRecordDecodeRoundtrip` | ✓ | ✓ | ✓ | ✓ |
+| `DurationParseMinValue` | ✓ | ✓ | ✓ | ✓ |
 
 ## Bug Details
 
@@ -255,3 +264,76 @@ Total mutations: 9
 - **Fix commit**: `d7ab5abeff0d55f23914b5f2257da8fe3e917002` — Fix validator soundness when `updateSchema` is not used (#648)
 - **Invariant violated**: If `validateEntities schema entities = .ok ()`, then every action entity in `entities` (member of any environment's `acts`) has empty `attrs`.
 - **How the mutation triggers**: Short-circuiting the `data.attrs == Map.empty` guard in `instanceOfActionSchemaEntry` (changing the test to `(data.attrs == Map.empty) || true`) accepts action entities with non-empty `attrs`. The witness installs `Action::"a"` with `{x: 1}` and observes `validateEntities` returning `.ok ()`.
+
+### 10. encoder_empty_record_well_formed
+
+- **Variant**: `encoder_empty_record_well_formed_7b9fe45_1`
+- **Location**: `cedar-lean/Cedar/SymCC/Encoder.lean:230` (inside `Cedar.SymCC.Encoder.defineRecord`)
+- **Property**: `EncoderEmptyRecordWellFormed`
+- **Witness(es)**:
+  - `witness_encoder_empty_record_well_formed_case_record_zero_fields` — `defineRecord "R0" []`; fix emits bare `R0`, bug emits malformed `(R0 )`
+- **Source**: [#752](https://github.com/cedar-policy/cedar-spec/pull/752) — Fix encodings of empty record literals (#752)
+  > SymCC encoder soundness gap on empty-record literals. Pre-#752,
+  > `defineRecord tyEnc tEncs` unconditionally emitted
+  > `({tyEnc} {String.intercalate " " tEncs})` as the SMT term body. For
+  > `tEncs = []`, the intercalate result is the empty string, so the
+  > emitted body becomes `({tyEnc} )` — a parenthesized application with
+  > zero arguments and a stray internal space, which is not a legal SMT-LIB
+  > 2.7 s-expression. Downstream solvers either reject the script or
+  > silently misparse it; either way symbolic verification of policies
+  > that mention empty record literals (a legal Cedar value) is unsound.
+  > 
+  > The fix gates on `tEncs.isEmpty`: when there are no field encodings,
+  > emit the bare type-constructor `{tyEnc}` (an `as` constant of the
+  > record sort); otherwise emit the parenthesized form as before.
+- **Fix commit**: `7b9fe456931e826d272455c233ccefa3552f0493` — Fix encodings of empty record literals (#752)
+- **Invariant violated**: The SMT-LIB text produced by `defineRecord tyEnc []` does not contain the malformed empty-application substring `({tyEnc} )` (a parenthesized constructor with zero arguments and a single internal space).
+- **How the mutation triggers**: Removing the `tEncs.isEmpty` guard from `defineRecord` makes the empty-list case fall through to the parenthesized format string, emitting `({tyEnc} )` as the term body. The witness invokes `defineRecord "R0" []`, captures the SMT input stream into an `IO.FS.Stream.Buffer`, and observes the malformed substring.
+
+### 11. encoder_empty_record_decode_roundtrip
+
+- **Variant**: `encoder_empty_record_decode_roundtrip_05e7634_1`
+- **Location**: `cedar-lean/Cedar/SymCC/Decoder.lean:236` (inside `Cedar.SymCC.Decoder.SExpr.decodeLit.enumOrEmptyRecord`)
+- **Property**: `EncoderEmptyRecordDecodeRoundtrip`
+- **Witness(es)**:
+  - `witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields` — `decodeLit` on `.symbol "R0"` with `R0` registered as empty record type; fix returns `Term.record (Map.mk [])`, bug fails with `"enum id"` error
+- **Source**: [#721](https://github.com/cedar-policy/cedar-spec/pull/721) — Fix decoder issue on empty records (#721)
+  > SymCC decoder companion to the empty-record encoding fix (#752). The
+  > encoder emits the bare type-constructor symbol `Rn` for an empty record
+  > literal (post-#752); the decoder must accept that bare symbol and
+  > reconstruct an empty record term. Pre-#721, `SExpr.decodeLit` on a
+  > bare `.symbol e` only consulted the enum table — if the symbol wasn't a
+  > declared enum member, it failed with `"enum id"`. After #752 the
+  > decoder would crash on any model containing an empty record value.
+  > 
+  > The fix renamed the helper from `enum` to `enumOrEmptyRecord` and
+  > routed the `.none` case to `constructEntityOrRecord s []`, which
+  > resolves the symbol against `IdMaps.types` and returns `Term.record`
+  > when the type is registered as a record.
+- **Fix commit**: `05e76349a9a3f662ea77b8be58bbd9a3fbd2b16f` — Fix decoder issue on empty records (#721)
+- **Invariant violated**: If `tyEnc` is registered as a `TermType.record (Map.mk [])` in `IdMaps.types`, then `SExpr.decodeLit ids (.symbol tyEnc)` returns `Except.ok (Term.record (Map.mk []))` — never `Except.error "enum id"`.
+- **How the mutation triggers**: Replacing the `.none => constructEntityOrRecord s []` arm of `enumOrEmptyRecord` with `.none => fail "enum id" s` makes the decoder reject any bare symbol that isn't a declared enum member, so an empty-record symbol like `R0` (the form the encoder emits) decodes to `Except.error "expected enum id, but got R0"` instead of an empty `Term.record`.
+
+### 12. duration_parse_min_value
+
+- **Variant**: `duration_parse_min_value_577_1`
+- **Location**: `cedar-lean/Cedar/Spec/Ext/Datetime.lean:257` (inside `Cedar.Spec.Ext.Datetime.Duration.parse`)
+- **Property**: `DurationParseMinValue`
+- **Witness(es)**:
+  - `witness_duration_parse_min_value_case_int64_min` — `Duration.parse "-9223372036854775808ms"`; fix returns `some Duration{val:=Int64.MIN}`, bug returns `none`
+- **Source**: [#577](https://github.com/cedar-policy/cedar-spec/pull/577) — Fixes issue in Datetime.Duration.parse when parsing min duration (#577)
+  > Numerical boundary bug at `Int64.MIN`. Pre-#577, `Duration.parse` first
+  > parsed the *unsigned* magnitude into `Int64` via `parseUnsignedDuration?`
+  > and only then negated via `Duration.neg?`. For `Int64.MIN =
+  > -9223372036854775808` the unsigned magnitude `9223372036854775808`
+  > overflows `Int64.MAX = 9223372036854775807` — `parseUnit?` returned
+  > `none` and the whole parse failed, even though `Int64.MIN` is itself a
+  > valid `Int64`.
+  > 
+  > The fix folded the negation into per-unit parsing: `parseUnit?` now
+  > takes an `isNegative` flag and applies `Int.negOfNat` to the magnitude
+  > *before* the `Int64.ofInt?` range check, so values like `Int64.MIN`
+  > parse cleanly.
+- **Fix commit**: `1b6649e6d0bb130574ca8ce8a8c2cf9aad3f9158` — Fixes issue in Datetime.Duration.parse when parsing min duration (#577)
+- **Invariant violated**: For any `Int n` with `Int64.MIN ≤ n ≤ Int64.MAX`, `Duration.parse s!"{n}ms"` returns `some d` with `d.val = Int64.ofInt n` (in particular, parses succeed at the `Int64.MIN` boundary).
+- **How the mutation triggers**: Replacing `parseDuration? isNegative restStr` in `Duration.parse` with `match parseDuration? false restStr with | some d => if isNegative then d.neg? else some d | none => none` reinstates the historical negate-after-unsigned-parse pattern. The unsigned magnitude `9223372036854775808` for `Int64.MIN` overflows `Int64.MAX` during `parseUnit?`'s `Int64.ofInt?` check, so the witness input `"-9223372036854775808ms"` decodes to `none` instead of `some Duration{val:=Int64.MIN}`.

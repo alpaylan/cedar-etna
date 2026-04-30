@@ -1,0 +1,12 @@
+diff --git a/cedar-lean/Cedar/SymCC/Decoder.lean b/cedar-lean/Cedar/SymCC/Decoder.lean
+--- a/cedar-lean/Cedar/SymCC/Decoder.lean
++++ b/cedar-lean/Cedar/SymCC/Decoder.lean
+@@ -233,7 +233,7 @@ where
+   enumOrEmptyRecord (s : String) : Result Term :=
+     match ids.enums.find? s with
+     | .some uid => Term.entity uid
+-    | .none     => constructEntityOrRecord s []
++    | .none     => fail "enum id" s
+   constructEntityOrRecord tyId args : Result Term := do
+     match ids.types.find? tyId, args with
+     | .some (.entity ety), [SExpr.string eid] =>

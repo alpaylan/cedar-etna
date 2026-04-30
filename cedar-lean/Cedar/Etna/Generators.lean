@@ -409,6 +409,35 @@ instance : Arbitrary Cedar.Spec.Policy where
 
 instance : Shrinkable Cedar.Spec.Policy where
 
+/-! ## Biased generator for the encoder's record-type identifier shape.
+The encoder produces record type names of the form `R<n>` (see `recordTypeId`
+in `Cedar/SymCC/Encoder.lean`). The decode-roundtrip property is parameterised
+on the registered record-type symbol; sampling random unicode strings would
+miss the encoder-shaped names where the bug actually surfaces in production
+SymCC pipelines. -/
+public def genRecordTypeName : Gen String := do
+  let n ← Gen.choose Nat 0 16 (Nat.zero_le _)
+  return s!"R{n.val}"
+
+/-! ## Biased generator for Int64 magnitudes near the boundaries.
+Default `Int.Arbitrary` produces small magnitudes; the duration min-value
+bug only surfaces at the exact `Int64.MIN = -9223372036854775808` boundary
+(the unsigned magnitude `9223372036854775808` overflows `Int64.MAX`).
+This generator emits values in `{Int64.MIN, Int64.MIN+k, Int64.MAX-k}` for
+small `k`, plus a uniform sample over a small window to keep the random
+search from over-fitting to the boundary. -/
+public def genInt64MagnitudeAroundMin : Gen Int := do
+  let i ← Gen.choose Nat 0 9 (Nat.zero_le _)
+  let k ← Gen.choose Nat 0 4 (Nat.zero_le _)
+  return match i.val with
+  | 0     => -9223372036854775808            -- Int64.MIN exact
+  | 1     => -9223372036854775808 + k.val    -- near MIN
+  | 2     =>  9223372036854775807            -- Int64.MAX exact
+  | 3     =>  9223372036854775807 - k.val    -- near MAX
+  | 4     => -9223372036854775809            -- one past MIN (out of range)
+  | 5     =>  9223372036854775808            -- one past MAX (out of range)
+  | _     => Int.negOfNat k.val              -- small magnitudes
+
 end Cedar.Etna
 
 end

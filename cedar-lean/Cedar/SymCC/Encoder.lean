@@ -226,7 +226,7 @@ def defineSet (tyEnc : String) (tEncs : List String) : EncoderM String := do
     let tEncs := String.intercalate " " tEncs
     defineTerm tyEnc s!"(set.insert {tEncs} (as set.empty {tyEnc}))"
 
-def defineRecord (tyEnc : String) (tEncs : List String) : EncoderM String := do
+public def defineRecord (tyEnc : String) (tEncs : List String) : EncoderM String := do
   defineTerm tyEnc (if tEncs.isEmpty then tyEnc else s!"({tyEnc} {String.intercalate " " tEncs})")
 
 def encodeUUF (uuf : UUF) : EncoderM String := do

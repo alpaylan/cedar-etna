@@ -170,6 +170,12 @@ def witnessFor (property : String) : Except String (IO PropertyResult) :=
       .ok witness_define_entity_rejects_non_member_case_zzz
   | "ValidateWithLevelAccepts" =>
       .ok (pure witness_validate_with_level_accepts_case_action_in_action)
+  | "EncoderEmptyRecordWellFormed" =>
+      .ok witness_encoder_empty_record_well_formed_case_record_zero_fields
+  | "EncoderEmptyRecordDecodeRoundtrip" =>
+      .ok (pure witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields)
+  | "DurationParseMinValue" =>
+      .ok (pure witness_duration_parse_min_value_case_int64_min)
   | _ => .error s!"Unknown property for etna: {property}"
 
 def runEtna (property : String) : IO Outcome := do
@@ -220,6 +226,12 @@ def runPlausible (property : String) : IO Outcome :=
   | "ValidateWithLevelAccepts" =>
     runRandomSamples (fun (p : Cedar.Spec.Policies × Cedar.Validation.Schema × Nat) =>
       property_validate_with_level_accepts p.fst p.snd.fst p.snd.snd)
+  | "EncoderEmptyRecordWellFormed" =>
+    runRandomSamplesIO property_encoder_empty_record_well_formed
+  | "EncoderEmptyRecordDecodeRoundtrip" =>
+    runRandomSamplesWith Cedar.Etna.genRecordTypeName property_encoder_empty_record_decode_roundtrip
+  | "DurationParseMinValue" =>
+    runRandomSamplesWith Cedar.Etna.genInt64MagnitudeAroundMin property_duration_parse_min_value
   | _ => return {
       status := "aborted",
       m := {},

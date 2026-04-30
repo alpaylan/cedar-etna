@@ -170,4 +170,13 @@ private def policyActionLitInAction : Policy := {
 def witness_validate_with_level_accepts_case_action_in_action : PropertyResult :=
   property_validate_with_level_accepts [policyActionLitInAction] schemaWithPhotoAndOneAction 1
 
+def witness_encoder_empty_record_well_formed_case_record_zero_fields : IO PropertyResult :=
+  property_encoder_empty_record_well_formed "R0"
+
+def witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields : PropertyResult :=
+  property_encoder_empty_record_decode_roundtrip "R0"
+
+def witness_duration_parse_min_value_case_int64_min : PropertyResult :=
+  property_duration_parse_min_value (-9223372036854775808)
+
 end Cedar.Etna

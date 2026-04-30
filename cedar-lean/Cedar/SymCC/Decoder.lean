@@ -138,7 +138,7 @@ def parseBinary : Parser (List Bool) := do
   trim (s.toList.map (· = '1'))
 
 -- Limited s-expression syntax that CVC5 uses to output models for Cedar formula.
-inductive SExpr where
+public inductive SExpr where
   | bitvec  : ∀ {n}, BitVec n → SExpr
   | numeral : Nat → SExpr
   | string  : String → SExpr
@@ -161,13 +161,13 @@ where
 
 ----- Decoding functions for SExprs -----
 
-abbrev StringOrd : String → String → Ordering := (compareOfLessAndEq · ·)
+public abbrev StringOrd : String → String → Ordering := (compareOfLessAndEq · ·)
 
-abbrev IdMap (α) := RBMap String α StringOrd
+public abbrev IdMap (α) := RBMap String α StringOrd
 
-abbrev IdMap.ofList {α} : List (String × α) → IdMap α := (List.toRBMap · StringOrd)
+public abbrev IdMap.ofList {α} : List (String × α) → IdMap α := (List.toRBMap · StringOrd)
 
-structure IdMaps where
+public structure IdMaps where
   types : IdMap TermType
   vars  : IdMap TermVar
   uufs  : IdMap UUF
@@ -221,7 +221,7 @@ where
     | [.symbol "Set", x]                          => do TermType.set (← x.decodeType types)
     | other                                       => fail "BitVec, Option, or Set" other
 
-partial def SExpr.decodeLit (ids : IdMaps) : SExpr → Result Term
+public partial def SExpr.decodeLit (ids : IdMaps) : SExpr → Result Term
   | .bitvec bv      => Term.bitvec bv
   | .string s       => Term.string s
   | .symbol "true"  => Term.bool true

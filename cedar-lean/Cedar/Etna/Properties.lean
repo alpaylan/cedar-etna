@@ -9,10 +9,12 @@ variants when the same invariant catches several historical bugs.
 
 import Cedar.Etna.Property
 import Cedar.Spec.Ext.Decimal
+import Cedar.Spec.Ext.Datetime
 import Cedar.Spec
 import Cedar.Validation.RequestEntityValidator
 import Cedar.Validation.Validator
 import Cedar.SymCC.Encoder
+import Cedar.SymCC.Decoder
 import Cedar.Validation.EnvironmentValidator
 
 namespace Cedar.Etna
@@ -306,5 +308,108 @@ def property_validate_with_level_accepts (policies : Policies) (schema : Schema)
   | .error (.levelError pid) =>
     .fail s!"validateWithLevel rejected policy {pid} with .levelError — the level checker rejected an entity-access expression it should have allowed"
   | .error _ => .pass
+
+/--
+Property (SymCC encoder soundness, empty-record edge case): the SMT-LIB
+text emitted by `defineRecord tyEnc []` must not contain the malformed
+empty-application form `({tyEnc} )` (a parenthesized constructor with
+zero arguments and a stray internal space).
+
+In SMT-LIB 2.7 a record literal is encoded either as the bare type
+constructor (when the record has no fields) or as `(Ty f₁ f₂ … fₙ)` when
+it has at least one field. The intermediate form `(Ty )` — emitted by
+the buggy `defineRecord` for an empty record — is not a legal s-expression
+application and downstream solvers either reject the script or, worse,
+silently misparse it.
+
+Historical fix: 7b9fe45 (cedar-spec #752 "Fix encodings of empty record
+literals"), which guards on `tEncs.isEmpty` and emits the bare
+constructor in that case. The synthetic ETNA patch removes the guard;
+the witness then constructs an empty record and observes the malformed
+`(R0 )` body in the captured SMT output.
+-/
+def property_encoder_empty_record_well_formed (tyEnc : String) : IO PropertyResult := do
+  let bufRef ← IO.mkRef ({ data := ByteArray.empty, pos := 0 } : IO.FS.Stream.Buffer)
+  let stream := IO.FS.Stream.ofBuffer bufRef
+  let solver : Cedar.SymCC.Solver := { smtLibInput := stream, smtLibOutput := none }
+  let state : Cedar.SymCC.EncoderState := {
+    terms := Batteries.RBMap.empty,
+    types := Batteries.RBMap.empty,
+    uufs  := Batteries.RBMap.empty,
+    enums := Batteries.RBMap.empty
+  }
+  let action : IO (String × Cedar.SymCC.EncoderState) :=
+    ((Cedar.SymCC.Encoder.defineRecord tyEnc []).run state).run solver
+  let _ ← action.toBaseIO
+  let buf ← bufRef.get
+  let smtText : String := String.fromUTF8! buf.data
+  let badPattern : String := s!"({tyEnc} )"
+  if (smtText.splitOn badPattern).length > 1 then
+    return .fail s!"defineRecord {repr tyEnc} [] emitted malformed empty-application `{badPattern}` in SMT output: {repr smtText}"
+  return .pass
+
+/--
+Property (SymCC encode/decode roundtrip on empty records): for any record
+type `tyEnc` registered as a `TermType.record (Map.mk [])` in the
+decoder's `IdMaps.types`, decoding the bare symbol `tyEnc` (the form the
+encoder emits for an empty record literal per #752) must yield the empty
+record term — not fail with `"enum id"`.
+
+Pre-#721, `SExpr.decodeLit` on a bare `.symbol e` only checked
+`ids.enums.find?` and failed with `"enum id"` if the symbol was not a
+declared enum member. After #752 made the encoder emit bare type
+constructors for empty records, models containing empty records would
+crash the decoder before being interpreted, breaking any SymCC pipeline
+whose policies include empty record literals.
+
+The fix renamed the helper to `enumOrEmptyRecord` and routed the
+`.none` case to `constructEntityOrRecord s []`, which resolves the
+symbol against `ids.types` and constructs the empty record when the
+type is registered as a record. The synthetic ETNA patch reverts that
+`.none` branch to the original `fail "enum id"` form; the witness then
+sees `Decoder.decodeLit ids (.symbol "R0")` return an `Except.error`
+where the fixed decoder returns `Term.record (Map.mk [])`.
+-/
+def property_encoder_empty_record_decode_roundtrip (tyEnc : String) : PropertyResult :=
+  let recordTy : Cedar.SymCC.TermType := .record (Cedar.Data.Map.mk [])
+  let ids : Cedar.SymCC.Decoder.IdMaps := {
+    types := Cedar.SymCC.Decoder.IdMap.ofList [(tyEnc, recordTy)],
+    vars  := Cedar.SymCC.Decoder.IdMap.ofList [],
+    uufs  := Cedar.SymCC.Decoder.IdMap.ofList [],
+    enums := Cedar.SymCC.Decoder.IdMap.ofList []
+  }
+  match Cedar.SymCC.Decoder.SExpr.decodeLit ids (Cedar.SymCC.Decoder.SExpr.symbol tyEnc) with
+  | Except.ok (.record (Cedar.Data.Map.mk [])) => .pass
+  | Except.ok t => .fail s!"decodeLit {repr tyEnc} returned unexpected term {repr t} (expected empty record)"
+  | Except.error msg => .fail s!"decodeLit {repr tyEnc} failed with `{msg}` — empty-record symbol roundtrip is broken"
+
+/--
+Property (Duration parser Int64-range round-trip): for any `Int n` whose
+magnitude fits in `Int64`, `Duration.parse s!"{n}ms"` must succeed and
+produce a `Duration` whose underlying `Int64` value equals `Int64.ofInt n`.
+
+Pre-#577, `Duration.parse` first parsed the *unsigned* magnitude into
+`Int64` and only then negated, so for `Int64.MIN = -9223372036854775808`
+the unsigned magnitude `9223372036854775808` overflowed `Int64`
+(`Int64.MAX = 9223372036854775807`) — `parseUnit?` returned `none` and
+the whole parse failed, even though `Int64.MIN` is itself a valid
+`Int64`. Post-fix, the negation is folded into per-unit parsing
+(`Int.negOfNat` before the `Int64.ofInt?` check), so `Int64.MIN`
+parses successfully.
+
+Random search drives this with `genInt64MagnitudeAroundMin` (biased
+toward magnitudes near `Int64.MIN`); the witness pins it to the
+worst-case input `Int64.MIN`.
+-/
+def property_duration_parse_min_value (n : Int) : PropertyResult :=
+  match Int64.ofInt? n with
+  | none => .discard
+  | some i64 =>
+    let str := s!"{n}ms"
+    match Datetime.Duration.parse str with
+    | some d =>
+      if d.val == i64 then .pass
+      else .fail s!"Duration.parse {repr str} = some {repr d.val} but expected {repr i64}"
+    | none => .fail s!"Duration.parse {repr str} returned none for in-range Int64 value {n}"
 
 end Cedar.Etna

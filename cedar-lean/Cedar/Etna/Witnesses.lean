@@ -246,4 +246,48 @@ def witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields : Property
 def witness_duration_parse_min_value_case_int64_min : PropertyResult :=
   property_duration_parse_min_value (-9223372036854775808)
 
+/-! ## Sanity-check witness for the broad SymCC pipeline property.
+
+Hand-built `(TypeEnv, body)` pair where the body is
+`principal.name == "x\"y"`. The env declares `User.name : String` so the
+body typechecks. The literal `"x\"y"` flows into encodeString without
+folding (the eq's left operand is a symbolic principal-attr access).
+On the buggy encoder, the SMT script contains an unbalanced string
+literal that CVC5 rejects at parse time. -/
+private def userWithNameAttr : EntitySchemaEntry :=
+  EntitySchemaEntry.standard {
+    ancestors := Set.empty,
+    attrs     := Map.mk [(("name" : Attr), Qualified.required CedarType.string)],
+    tags      := none
+  }
+
+private def envWithUserName : TypeEnv := {
+  ets := Map.make [(userEty, userWithNameAttr), (photoEty, photoEntry)],
+  acts := Map.mk [(actionUid, aseValid)],
+  reqty := {
+    principal := userEty,
+    action    := actionUid,
+    resource  := photoEty,
+    context   := Map.empty
+  }
+}
+
+def witness_symcc_pipeline_soundness_case_string_quote : IO PropertyResult :=
+  property_symcc_pipeline_soundness envWithUserName
+    (Expr.binaryApp BinaryOp.eq
+      (Expr.getAttr (Expr.var Var.principal) "name")
+      (Expr.lit (.string "x\"y")))
+
+/-- Witness: `context == {}` against an env whose request type has an
+empty context. The eq doesn't fold (left is symbolic, right is literal);
+compile produces a Term referencing `Term.record (Map.mk [])` on the
+right; the encoder emits the empty-record value through `defineRecord`,
+which the buggy version mis-emits as `(R0 )` in value position — CVC5
+rejects at parse time. -/
+def witness_symcc_pipeline_soundness_case_empty_record : IO PropertyResult :=
+  property_symcc_pipeline_soundness envWithUserName
+    (Expr.binaryApp BinaryOp.eq
+      (Expr.var Var.context)
+      (Expr.record []))
+
 end Cedar.Etna

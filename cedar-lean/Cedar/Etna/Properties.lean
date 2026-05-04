@@ -27,6 +27,7 @@ import Cedar.SymCC.Compiler
 import Cedar.SymCC.Encoder
 import Cedar.SymCC.Decoder
 import Cedar.SymCC.Solver
+import Cedar.SymCC.Verifier
 import Cedar.Validation.EnvironmentValidator
 
 namespace Cedar.Etna
@@ -372,5 +373,69 @@ def property_validate_with_level_accepts (policies : Policies) (schema : Schema)
   | .error (.levelError pid) =>
     .fail s!"validateWithLevel rejected policy {pid} with .levelError — the level checker rejected an entity-access expression it should have allowed"
   | .error _ => .pass
+
+/-! ## SymCC pipeline preservation — broad CVC5-backed property.
+
+This is the canonical preservation property for a verifier compiler:
+for any well-typed `(env, body)` pair, running the policy
+`permit when { body }` through `verifyNeverErrors → Encoder.encode →
+CVC5 → [getModel → Decoder.decode]` must succeed end-to-end. CVC5 is
+the SMT-LIB grammar oracle (catches encoder bugs that emit malformed
+output) and the decoder reconstructing the model is the round-trip
+oracle (catches decoder bugs).
+
+The property requires the `CVC5` env var to point at a CVC5 binary;
+without it, the property discards. With type-directed random
+generation (`Cedar.Etna.TypeDirected.genJointInputs`), random search
+exercises this pipeline over arbitrary well-typed Cedar expressions —
+the broad-preservation property a tester would write without knowing
+which encoder/decoder corner is broken. -/
+
+private def policyPermitWhen (body : Expr) : Policy := {
+  id := "p_etna",
+  effect := .permit,
+  principalScope := .principalScope .any,
+  actionScope := .actionScope .any,
+  resourceScope := .resourceScope .any,
+  condition := [{ kind := .when, body := body }]
+}
+
+def property_symcc_pipeline_soundness (env : TypeEnv) (body : Expr) : IO PropertyResult := do
+  match ← IO.getEnv "CVC5" with
+  | none => return .discard
+  | some _ =>
+  let symEnv : Cedar.SymCC.SymEnv := Cedar.SymCC.SymEnv.ofEnv env
+  -- `verifyAlwaysMatches` asks "is the policy always true?" — its asserts
+  -- encode the body's evaluation logic in full (vs. `verifyNeverErrors`,
+  -- whose asserts only encode error paths and constant-fold pure bodies
+  -- to trivial constants). For SymCC encoder/decoder soundness we need
+  -- the body's literals (strings, records) to appear in the SMT, which
+  -- `verifyAlwaysMatches` preserves.
+  match Cedar.SymCC.verifyAlwaysMatches (policyPermitWhen body) symEnv with
+  | .error _   => return .discard
+  | .ok asserts =>
+    let action : IO (Cedar.SymCC.Decision × Cedar.SymCC.EncoderState × Option String) := do
+      let solver ← Cedar.SymCC.Solver.cvc5
+      let inner : Cedar.SymCC.SolverM (Cedar.SymCC.Decision × Cedar.SymCC.EncoderState × Option String) := do
+        let enc ← Cedar.SymCC.Encoder.encode asserts symEnv (produceModels := true)
+        let dec ← Cedar.SymCC.Solver.checkSat
+        let model ← match dec with
+          | .sat => Cedar.SymCC.Solver.getModel
+          | _    => pure ""
+        return (dec, enc, if dec matches .sat then some model else none)
+      Cedar.SymCC.SolverM.run solver inner
+    match ← action.toBaseIO with
+    | .error e =>
+      -- CVC5 rejected the encoded SMT — encoder leaked malformed output.
+      return .fail s!"CVC5 rejected encoded SMT for body {repr body}: {e}"
+    | .ok (.sat, enc, some model) =>
+      -- Encode-decode roundtrip: decoder must accept the solver's model.
+      match Cedar.SymCC.Decoder.decode model enc with
+      | .ok _      => return .pass
+      | .error msg =>
+        return .fail s!"Decoder.decode rejected CVC5's model: {msg}\n  body: {repr body}\n  model: {model}"
+    | .ok _ =>
+      -- unsat or unknown — pipeline succeeded; no model to roundtrip.
+      return .pass
 
 end Cedar.Etna

@@ -196,7 +196,9 @@ def witnessFor (property : String) : Except String (IO PropertyResult) :=
   | "ValidateActionEntityNoAttrs" =>
       .ok (pure witness_validate_action_entity_no_attrs_case_action_with_attr)
   | "SmtEncodeStringBalancedQuotes" =>
-      .ok witness_smt_encode_string_balanced_quotes_case_quote_in_middle
+      -- Broad witness: full Cedar→SymCC→CVC5→decoder pipeline preservation.
+      -- Requires CVC5 in env; discards otherwise.
+      .ok witness_symcc_pipeline_soundness_case_string_quote
   | "ValidateRejectsUndeclaredEntities" =>
       .ok (pure witness_validate_rejects_undeclared_entities_case_unknown_principal)
   | "ValidateRequestPrincipalExists" =>
@@ -208,7 +210,8 @@ def witnessFor (property : String) : Except String (IO PropertyResult) :=
   | "ValidateWithLevelAccepts" =>
       .ok (pure witness_validate_with_level_accepts_case_action_in_action)
   | "EncoderEmptyRecordWellFormed" =>
-      .ok witness_encoder_empty_record_well_formed_case_record_zero_fields
+      -- Broad witness: full Cedar→SymCC→CVC5→decoder pipeline preservation.
+      .ok witness_symcc_pipeline_soundness_case_empty_record
   | "EncoderEmptyRecordDecodeRoundtrip" =>
       .ok (pure witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields)
   | "DurationParseMinValue" =>

@@ -450,6 +450,11 @@ def property_symcc_pipeline_soundness (env : TypeEnv) (body : Expr) : IO Propert
         let model ← match dec with
           | .sat => Cedar.SymCC.Solver.getModel
           | _    => pure ""
+        -- Always issue (exit) so the CVC5 subprocess terminates cleanly
+        -- between trials. Without this each random-search trial leaks a
+        -- CVC5 process; after a few hundred trials, file descriptors run
+        -- out and the next spawn hangs.
+        Cedar.SymCC.Solver.exit
         return (dec, enc, if dec matches .sat then some model else none)
       Cedar.SymCC.SolverM.run solver inner
     match ← action.toBaseIO with

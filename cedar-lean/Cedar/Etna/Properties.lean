@@ -62,19 +62,26 @@ def property_decimal_parse_negative_sign_preserved (n : Int) : PropertyResult :=
       .fail s!"toString {repr d} = {repr s} did not roundtrip — parse returned none"
 
 /--
-Property: the Cedar spec restricts decimal literals to `[-]?[0-9]+\.[0-9]+`,
-so the parser must reject any input outside that grammar. We assert the
-underscore case directly — Lean's `String.toInt?`/`String.toNat?` silently
-accept `_` characters, and a decimal parser delegating to them without a
-guard would leak that lenient behavior.
+Property (parser grammar adherence): the Cedar spec grammar for decimal
+literals is `[-]?[0-9]+\.[0-9]+`. Every character of an accepted string
+must therefore be one of `-`, `.`, or a digit `0`-`9` — anything else
+(`_`, letters, whitespace, etc.) is outside the grammar and the parser
+must reject it.
+
+This is the spec-grammar safety invariant a tester would write without
+knowing which specific non-grammar character a buggy parser leaks
+through (Lean's `String.toInt?`/`String.toNat?` happen to accept `_`,
+but the same property catches any other lenient-character bug).
 -/
 def property_decimal_parse_no_underscore (s : String) : PropertyResult :=
   match Decimal.parse s with
   | none => .pass
   | some d =>
-    if s.contains '_' then
-      .fail s!"Decimal.parse {repr s} = some {repr d} but underscores are outside the spec grammar"
-    else .pass
+    let outOfGrammar : List Char := s.toList.filter (fun c =>
+      not (c = '-' || c = '.' || ('0' ≤ c && c ≤ '9')))
+    match outOfGrammar with
+    | [] => .pass
+    | c :: _ => .fail s!"Decimal.parse {repr s} = some {repr d} but contains non-grammar character {repr c}"
 
 /-! ## Duration — parse/print roundtrip via `toMilliseconds`. -/
 

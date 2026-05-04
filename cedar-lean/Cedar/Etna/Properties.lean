@@ -37,72 +37,100 @@ open Cedar.Spec
 open Cedar.Validation
 open Cedar.Data
 
-/-! ## Decimal — parse/print roundtrip and grammar invariants. -/
+/-! ## Cedar AST — evaluator-level extension-function consistency.
+
+The "parser bugs" in this workload (variants 1, 2, 3) live in Cedar's
+*extension-function* parsers (`Decimal.parse`, `Duration.parse`) — not
+in any policy text parser, since the Lean spec doesn't have one.
+These parsers fire at evaluation time, not at AST-construction time.
+
+The broad property is a CedarAST-level statement parametric over the
+extension type: for any extension value `v` of type τ and any string
+`s` that should parse to `v` per the Cedar spec, the policy expression
+`Expr.call (extFnFor τ) [Expr.lit (.string s)]` must evaluate to
+`.ok (.ext v)`. This catches parser bugs in any extension uniformly —
+no reference to Decimal/Duration internals. The complementary
+property catches grammar leaks: if the evaluator accepts a string
+outside the spec's grammar, the parser is too permissive.
+-/
+
+/-- A minimal request/entities, sufficient for evaluating extension-call
+literals that don't reference the request or entity store. -/
+private def emptyRequest : Request := {
+  principal := { ty := { id := "U", path := [] }, eid := "" },
+  action    := { ty := { id := "A", path := [] }, eid := "" },
+  resource  := { ty := { id := "R", path := [] }, eid := "" },
+  context   := Map.empty
+}
+
+private def emptyEntities : Entities := Map.empty
+
+/-- The extension-function name corresponding to an Ext value's type. -/
+private def extFnOf : Ext → ExtFun
+  | .decimal _  => .decimal
+  | .ipaddr _   => .ip
+  | .datetime _ => .datetime
+  | .duration _ => .duration
 
 /--
-Property: `Decimal.parse (toString d) = some d` for every `Decimal d`.
+Property (Cedar AST evaluator-level extension roundtrip — broad,
+parametric over extension type):
 
-This is the canonical print-then-parse roundtrip property for a Decimal
-parser/printer pair. It catches sign-handling bugs without referencing the
-parser internals: the printer emits a textual sign for negatives, and the
-parser must re-derive it. A bug in the sign-inference path manifests as a
-roundtrip mismatch (e.g., `toString (-1 : Decimal) = "-0.0001"`, but a
-buggy parser returns `+0.0001`).
+For any extension value `e` and string `s` claimed to be a Cedar-spec
+rendering of `e`, the Cedar policy expression
+`Expr.call (extFnOf e) [Expr.lit (.string s)]` must evaluate to
+`.ok (.ext e)`. The harness supplies the `(e, s)` pair; the property
+makes no reference to a specific extension type, parser, or rendering
+algorithm. Bugs in any extension parser surface as a value mismatch.
 -/
+def property_evaluator_extension_consistency (e : Ext) (s : String) : PropertyResult :=
+  let expr : Expr := .call (extFnOf e) [.lit (.string s)]
+  match evaluate expr emptyRequest emptyEntities with
+  | .ok (.ext e') =>
+    if e' == e then .pass
+    else .fail s!"evaluate({repr expr}) = ok (.ext {repr e'}), expected (.ext {repr e})"
+  | .ok v =>
+    .fail s!"evaluate({repr expr}) = ok {repr v}, expected (.ext {repr e})"
+  | .error err =>
+    .fail s!"evaluate({repr expr}) errored: {repr err}, expected (.ext {repr e})"
+
+/-- Variant-1 thin wrapper: the parametric property instantiated at the
+Decimal extension type, with the value rendered via `toString`. -/
 def property_decimal_parse_negative_sign_preserved (n : Int) : PropertyResult :=
   match Int64.ofInt? n with
   | none => .discard
   | some i64 =>
     let d : Decimal := i64
-    let s := toString d
-    match Decimal.parse s with
-    | some d' =>
-      if d' == d then .pass
-      else .fail s!"toString {repr d} = {repr s}, but Decimal.parse {repr s} = some {repr d'} ≠ {repr d}"
-    | none =>
-      .fail s!"toString {repr d} = {repr s} did not roundtrip — parse returned none"
+    property_evaluator_extension_consistency (.decimal d) (toString d)
 
-/--
-Property (parser grammar adherence): the Cedar spec grammar for decimal
-literals is `[-]?[0-9]+\.[0-9]+`. Every character of an accepted string
-must therefore be one of `-`, `.`, or a digit `0`-`9` — anything else
-(`_`, letters, whitespace, etc.) is outside the grammar and the parser
-must reject it.
-
-This is the spec-grammar safety invariant a tester would write without
-knowing which specific non-grammar character a buggy parser leaks
-through (Lean's `String.toInt?`/`String.toNat?` happen to accept `_`,
-but the same property catches any other lenient-character bug).
--/
-def property_decimal_parse_no_underscore (s : String) : PropertyResult :=
-  match Decimal.parse s with
-  | none => .pass
-  | some d =>
-    let outOfGrammar : List Char := s.toList.filter (fun c =>
-      not (c = '-' || c = '.' || ('0' ≤ c && c ≤ '9')))
-    match outOfGrammar with
-    | [] => .pass
-    | c :: _ => .fail s!"Decimal.parse {repr s} = some {repr d} but contains non-grammar character {repr c}"
-
-/-! ## Duration — parse/print roundtrip via `toMilliseconds`. -/
-
-/--
-Property: for any `Int n` whose magnitude fits `Int64`,
-`Duration.parse "<n>ms"` must succeed and round-trip via `toMilliseconds`.
-This is the parse spec invariant for the `ms`-suffix grammar; it does not
-reference the parser internals.
--/
+/-- Variant-3 thin wrapper: the parametric property instantiated at the
+Duration extension type. Duration's spec rendering of `Duration{val:=k}`
+is `s!"{k}ms"`. -/
 def property_duration_parse_min_value (n : Int) : PropertyResult :=
   match Int64.ofInt? n with
   | none => .discard
   | some i64 =>
-    let str := s!"{n}ms"
-    match Datetime.Duration.parse str with
-    | some d =>
-      if d.val == i64 then .pass
-      else .fail s!"Duration.parse {repr str} returned {repr d.val}, expected {repr i64}"
-    | none =>
-      .fail s!"Duration.parse {repr str} returned none for in-range Int64 value {n}"
+    let dur : Datetime.Duration := { val := i64 }
+    property_evaluator_extension_consistency (.duration dur) s!"{n}ms"
+
+/--
+Property (parser grammar adherence — variant 2): the Cedar spec
+restricts decimal literals to `[-]?[0-9]+\.[0-9]+`. Through the
+evaluator: if `evaluate (decimal(s))` succeeds, then every character of
+`s` is in `{ '-', '.', '0'-'9' }`. Anything else (`_`, letters, etc.)
+is outside the grammar and the evaluator must error. -/
+def property_decimal_parse_no_underscore (s : String) : PropertyResult :=
+  let expr : Expr := .call .decimal [.lit (.string s)]
+  match evaluate expr emptyRequest emptyEntities with
+  | .error _ => .pass
+  | .ok (.ext (.decimal d)) =>
+    let outOfGrammar : List Char := s.toList.filter (fun c =>
+      not (c = '-' || c = '.' || ('0' ≤ c && c ≤ '9')))
+    match outOfGrammar with
+    | [] => .pass
+    | c :: _ =>
+      .fail s!"evaluate(decimal({repr s})) = ok {repr d} but {repr s} contains non-grammar character {repr c}"
+  | .ok v => .fail s!"evaluate(decimal({repr s})) = ok {repr v} (not a Decimal)"
 
 /-! ## SymCC encoder — structural well-formedness on captured SMT.
 

@@ -51,17 +51,29 @@ private def badActionEntityData : EntityData := {
 private def entitiesBadAction : Entities :=
   Map.mk [(actionUid, badActionEntityData)]
 
+/-- Witness: parse-print roundtrip on `Decimal{val:=-1}` (`= -0.0001`). The
+buggy parser computes the sign from the parsed integer part —
+`String.toInt? "-0" = some 0` yields `0 ≥ 0`, so it takes the positive
+branch and returns `+0.0001`, breaking the roundtrip. -/
 def witness_decimal_parse_negative_sign_preserved_case_neg_zero : PropertyResult :=
-  property_decimal_parse_negative_sign_preserved "-0.5"
+  property_decimal_parse_negative_sign_preserved (-1)
 
+/-- Witness: the spec disallows `_` in decimal literals. The buggy parser
+delegates to Lean's `String.toInt?`/`String.toNat?` (which silently accept
+`_`), so `"1_2.34"` parses as `12.3400` instead of being rejected. -/
 def witness_decimal_parse_no_underscore_case_int_part : PropertyResult :=
   property_decimal_parse_no_underscore "1_2.34"
 
 def witness_validate_action_entity_no_attrs_case_action_with_attr : PropertyResult :=
   property_validate_action_entity_no_attrs schemaWithOneAction entitiesBadAction
 
+/-- Witness: a Cedar expression containing the string literal `"x\"y"`
+compiles to a `Term.prim (.string "x\"y")`, and `Encoder.encode` routes it
+through `encodeString`, which must double the inner `"` per SMT-LIB. The
+buggy encoder leaves it as a single `"`, producing odd quote-count
+output. -/
 def witness_smt_encode_string_balanced_quotes_case_quote_in_middle : IO PropertyResult :=
-  property_smt_encode_string_balanced_quotes "x\"y"
+  property_smt_encode_string_balanced_quotes (Expr.lit (.string "x\"y"))
 
 private def fooEty : EntityType := { id := "Foo", path := [] }
 private def fooUid : EntityUID := { ty := fooEty, eid := "x" }
@@ -170,8 +182,12 @@ private def policyActionLitInAction : Policy := {
 def witness_validate_with_level_accepts_case_action_in_action : PropertyResult :=
   property_validate_with_level_accepts [policyActionLitInAction] schemaWithPhotoAndOneAction 1
 
+/-- Witness: an empty-record literal expression `Expr.record []` compiles
+to `Term.record (Map.mk [])`. `Encoder.encode` routes it through
+`defineRecord` with empty field-encodings; the buggy version emits the
+malformed `(R0 )` form (atom token followed by space and `)`). -/
 def witness_encoder_empty_record_well_formed_case_record_zero_fields : IO PropertyResult :=
-  property_encoder_empty_record_well_formed "R0"
+  property_encoder_empty_record_well_formed (Expr.record [])
 
 def witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields : PropertyResult :=
   property_encoder_empty_record_decode_roundtrip "R0"

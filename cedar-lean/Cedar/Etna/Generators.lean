@@ -1,14 +1,13 @@
 /-
 Plausible `Arbitrary` + `Shrinkable` instances for Cedar types so the ETNA
-runner's `plausible` mode can drive random search against every property,
-not just the String-input ones.
+runner's `plausible` mode can drive random search against every property.
 
-These generators are small-by-design: they pick from short, fixed pools of
-entity types, EIDs, and attribute names so every random sample has a chance
-of triggering schema-wellformedness or validator interactions. A fully
-unrestricted generator wastes most trials on syntactically-valid but
-semantically-uninteresting inputs (random unicode strings as entity types
-that no schema declares).
+Generators are blind: no special-purpose shape biases pre-target any
+particular bug. The only narrowing is small fixed-size pools for entity
+types / EIDs / attribute names — a pure unicode generator would dilute the
+search to the point where schema/policy collisions never happen, which
+isn't a property of the bug, just of testing AAC at all. Pool entries are
+generic placeholders, not values referenced by any specific witness.
 
 Coverage: Name, EntityType, EntityUID, Prim, Value, Set α, Map α β,
 Effect, Scope, PrincipalScope, ResourceScope, ActionScope, ConditionKind,
@@ -37,8 +36,8 @@ open Cedar.Data
 that schema/request/policy interactions actually exercise validator code paths.
 -/
 
-public def entityTypePool : List String := ["User", "Photo", "Album", "Action", "Foo"]
-public def eidPool        : List String := ["alice", "bob", "x", "y", "z", "ghost", "p1", "a"]
+public def entityTypePool : List String := ["User", "Photo", "Album", "Action", "Group", "Document"]
+public def eidPool        : List String := ["alice", "bob", "carol", "dave", "p1", "p2", "doc1", "doc2"]
 public def attrPool       : List String := ["flag", "name", "age", "owner"]
 public def actionEidPool  : List String := ["a", "b", "view", "edit"]
 
@@ -48,6 +47,16 @@ public def gen [Inhabited α] (xs : List α) : Gen α := do
   | _ :: _ =>
     let i ← Gen.choose Nat 0 (xs.length - 1) (Nat.zero_le _)
     return xs[i.val]!
+
+/-- Random short ASCII string in printable-ASCII (code points 32–126).
+Generic — covers punctuation that is load-bearing in many text-processing
+contexts (`"`, `\\`, `_`, etc.). -/
+public def genShortAscii : Gen String := do
+  let n ← Gen.choose Nat 0 8 (Nat.zero_le _)
+  let cs ← (List.range n.val).mapM (fun _ => do
+    let i ← Gen.choose Nat 0 94 (Nat.zero_le _)
+    return Char.ofNat (32 + i.val))
+  return String.ofList cs
 
 /-! ## Layer 1 — primitives -/
 
@@ -101,7 +110,9 @@ instance : Arbitrary Cedar.Spec.Prim where
       let n ← Gen.choose Nat 0 100 (Nat.zero_le _)
       return .int (Int64.ofInt n.val)
     | ⟨2, _⟩ =>
-      let s ← gen attrPool
+      -- Random ASCII string — broad enough to include `"`, `\\`, and `_`,
+      -- which the encoder/parser have to handle correctly.
+      let s ← genShortAscii
       return .string s
     | _      => return .entityUID (← Arbitrary.arbitrary)
 
@@ -324,55 +335,45 @@ instance : Arbitrary Cedar.Spec.Var where
 
 instance : Shrinkable Cedar.Spec.Var where
 
-/-! ## Biased generator for decimal-shaped strings.
-The default `String.Arbitrary` produces random unicode strings; in 200
-trials it almost never lands on a decimal literal pattern, so the
-parser-bug variants (#799, #877) silently slip through random search.
-This generator emits `[-]?[0-9_]+(.[0-9_]+)?` shapes so Plausible
-mode can find those bugs in the first few trials. -/
-
-public def genDecimalDigit : Gen Char := do
-  let i ← Gen.choose Nat 0 11 (Nat.zero_le _)
-  return match i.val with
-  | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 => Char.ofNat (48 + i.val)
-  | _ => '_'
-
-public def genDigits (n : Nat) : Gen String := do
-  let cs ← (List.range n).mapM (fun _ => genDecimalDigit)
-  return String.ofList cs
-
-public def genDecimalString : Gen String := do
-  let neg ← Gen.chooseAny Bool
-  let lenL ← Gen.choose Nat 0 4 (Nat.zero_le _)
-  let lenR ← Gen.choose Nat 0 4 (Nat.zero_le _)
-  let left  ← genDigits lenL.val
-  let right ← genDigits lenR.val
-  let sign := if neg then "-" else ""
-  let withDot ← Gen.chooseAny Bool
-  return if withDot then s!"{sign}{left}.{right}" else s!"{sign}{left}"
-
-/-- Tiny bounded `Expr` generator — we emit only literal/var/binary forms,
-deep enough to construct policies whose conditions reference action literals
-(needed for variant 9) or undeclared entities (variant 5) but not enough to
-overrun the typechecker. -/
+/-- Bounded `Expr` generator. Depth-2 cap keeps the typechecker out of
+pathological recursion. Covers literals, variables, boolean connectives,
+binary ops, set/record constructors, and attribute lookups — no operator
+is biased toward any specific bug-trigger shape. -/
 public partial def genExpr : Nat → Gen Cedar.Spec.Expr
   | 0 => do
     match ← Gen.choose Nat 0 1 (Nat.zero_le _) with
     | ⟨0, _⟩ => return .lit (← Arbitrary.arbitrary)
     | _      => return .var (← Arbitrary.arbitrary)
   | n + 1 => do
-    match ← Gen.choose Nat 0 4 (Nat.zero_le _) with
+    match ← Gen.choose Nat 0 8 (Nat.zero_le _) with
     | ⟨0, _⟩ => return .lit (← Arbitrary.arbitrary)
     | ⟨1, _⟩ => return .var (← Arbitrary.arbitrary)
     | ⟨2, _⟩ => return .and (← genExpr n) (← genExpr n)
     | ⟨3, _⟩ => return .or  (← genExpr n) (← genExpr n)
-    | _ =>
+    | ⟨4, _⟩ =>
       let op : BinaryOp ←
         match ← Gen.choose Nat 0 2 (Nat.zero_le _) with
         | ⟨0, _⟩ => pure .eq
         | ⟨1, _⟩ => pure .mem
         | _      => pure .less
       return .binaryApp op (← genExpr n) (← genExpr n)
+    | ⟨5, _⟩ =>
+      let k ← Gen.choose Nat 0 2 (Nat.zero_le _)
+      let xs ← (List.range k.val).mapM (fun _ => genExpr n)
+      return .set xs
+    | ⟨6, _⟩ =>
+      let k ← Gen.choose Nat 0 2 (Nat.zero_le _)
+      let kvs ← (List.range k.val).mapM (fun _ => do
+        let a ← gen attrPool
+        let v ← genExpr n
+        return (a, v))
+      return .record kvs
+    | ⟨7, _⟩ =>
+      let a ← gen attrPool
+      return .getAttr (← genExpr n) a
+    | _ =>
+      let a ← gen attrPool
+      return .hasAttr (← genExpr n) a
 
 instance : Arbitrary Cedar.Spec.Expr where
   arbitrary := genExpr 2
@@ -408,35 +409,6 @@ instance : Arbitrary Cedar.Spec.Policy where
     return { id, effect, principalScope, actionScope, resourceScope, condition }
 
 instance : Shrinkable Cedar.Spec.Policy where
-
-/-! ## Biased generator for the encoder's record-type identifier shape.
-The encoder produces record type names of the form `R<n>` (see `recordTypeId`
-in `Cedar/SymCC/Encoder.lean`). The decode-roundtrip property is parameterised
-on the registered record-type symbol; sampling random unicode strings would
-miss the encoder-shaped names where the bug actually surfaces in production
-SymCC pipelines. -/
-public def genRecordTypeName : Gen String := do
-  let n ← Gen.choose Nat 0 16 (Nat.zero_le _)
-  return s!"R{n.val}"
-
-/-! ## Biased generator for Int64 magnitudes near the boundaries.
-Default `Int.Arbitrary` produces small magnitudes; the duration min-value
-bug only surfaces at the exact `Int64.MIN = -9223372036854775808` boundary
-(the unsigned magnitude `9223372036854775808` overflows `Int64.MAX`).
-This generator emits values in `{Int64.MIN, Int64.MIN+k, Int64.MAX-k}` for
-small `k`, plus a uniform sample over a small window to keep the random
-search from over-fitting to the boundary. -/
-public def genInt64MagnitudeAroundMin : Gen Int := do
-  let i ← Gen.choose Nat 0 9 (Nat.zero_le _)
-  let k ← Gen.choose Nat 0 4 (Nat.zero_le _)
-  return match i.val with
-  | 0     => -9223372036854775808            -- Int64.MIN exact
-  | 1     => -9223372036854775808 + k.val    -- near MIN
-  | 2     =>  9223372036854775807            -- Int64.MAX exact
-  | 3     =>  9223372036854775807 - k.val    -- near MAX
-  | 4     => -9223372036854775809            -- one past MIN (out of range)
-  | 5     =>  9223372036854775808            -- one past MAX (out of range)
-  | _     => Int.negOfNat k.val              -- small magnitudes
 
 end Cedar.Etna
 

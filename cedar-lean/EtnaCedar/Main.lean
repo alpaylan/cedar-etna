@@ -43,7 +43,7 @@ Both can be overridden via env vars so callers can tune without rebuilds:
   ETNA_RUNNER_TIMEOUT_MS   — overrides runtimeBudgetMs (set ~5s below the
                               etna-cli timeout to give the runner headroom). -/
 private def defaultNumTrials  : Nat := 1_000_000
-private def defaultRuntimeMs  : Nat := 55_000   -- assumes ~60 s outer timeout
+private def defaultRuntimeMs  : Nat := 595_000  -- assumes ~600 s outer timeout
 private def maxSize : Nat := 100
 
 private def envNat (key : String) : IO (Option Nat) := do
@@ -204,9 +204,9 @@ counterexamples. Cedar's existing derivations cover most of these. -/
 def runPlausible (property : String) : IO Outcome :=
   match property with
   | "DecimalParseNegativeSignPreserved" =>
-    runRandomSamplesWith Cedar.Etna.genDecimalString property_decimal_parse_negative_sign_preserved
+    runRandomSamples property_decimal_parse_negative_sign_preserved
   | "DecimalParseNoUnderscore" =>
-    runRandomSamplesWith Cedar.Etna.genDecimalString property_decimal_parse_no_underscore
+    runRandomSamples property_decimal_parse_no_underscore
   | "SmtEncodeStringBalancedQuotes" =>
     runRandomSamplesIO property_smt_encode_string_balanced_quotes
   | "ValidateActionEntityNoAttrs" =>
@@ -229,9 +229,9 @@ def runPlausible (property : String) : IO Outcome :=
   | "EncoderEmptyRecordWellFormed" =>
     runRandomSamplesIO property_encoder_empty_record_well_formed
   | "EncoderEmptyRecordDecodeRoundtrip" =>
-    runRandomSamplesWith Cedar.Etna.genRecordTypeName property_encoder_empty_record_decode_roundtrip
+    runRandomSamples property_encoder_empty_record_decode_roundtrip
   | "DurationParseMinValue" =>
-    runRandomSamplesWith Cedar.Etna.genInt64MagnitudeAroundMin property_duration_parse_min_value
+    runRandomSamples property_duration_parse_min_value
   | _ => return {
       status := "aborted",
       m := {},

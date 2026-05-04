@@ -15,7 +15,6 @@ permissions:
 jobs:
   publish:
     uses: alpaylan/etna-cli/.github/workflows/run-and-publish.yml@fix-canary-rollout
-    timeout-minutes: 720
     with:
       trials: 10
       timeout: 600

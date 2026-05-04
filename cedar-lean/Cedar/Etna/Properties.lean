@@ -21,6 +21,8 @@ import Cedar.Spec.Ext.Datetime
 import Cedar.Spec
 import Cedar.Validation.RequestEntityValidator
 import Cedar.Validation.Validator
+import Cedar.Validation.Typechecker
+import Cedar.Validation.TypedExpr
 import Cedar.SymCC.Compiler
 import Cedar.SymCC.Encoder
 import Cedar.SymCC.Decoder
@@ -300,35 +302,54 @@ def property_validate_request_principal_exists (schema : Schema) (request : Requ
     else .fail s!"validateRequest passed but principal {request.principal} is not declared in schema"
 
 /--
-Property (TypeEnv well-formedness): if `Schema.validateWellFormed schema`
-returns `.ok ()`, then every attribute type in every standard schema entry
-must be lifted — i.e. no nested singleton-bool types (`.bool .tt`,
-`.bool .ff`). The Cedar typechecker's soundness proofs assume schema-level
-types are lifted; the spec rule is "well-formed schemas only carry lifted
-types."
+Property (validator type-preservation): if a schema is well-formed and
+typechecks an expression to a concrete `CedarType τ`, evaluation must
+produce a `Value` that is an *instance* of `τ`. This is the canonical
+preservation theorem for a typed expression language.
 
-We use `CedarType.validateLifted` as the oracle — it encodes the
-"types-are-lifted" spec rule independently of the validator.
+Specifically: for any `(expr, schema, request, entities)` —
+  • `Schema.validateWellFormed schema = .ok ()`,
+  • `validateRequest schema request = .ok ()`,
+  • the schema has an environment matching the request triple
+    `(principal.ty, resource.ty, action)`,
+  • `typeOf expr ∅ env = .ok (te, _)`,
+  • `evaluate expr request entities = .ok v`,
+then `instanceOfType v te.typeOf env = true`.
+
+This is broader than spec-rule oracles like "no singleton-bool attrs in
+the schema": it instead asserts the typechecker's *promised type* lines
+up with the evaluator's *actual value*. The variant-7 bug surfaces here
+because removing `validateLifted` lets a schema declare e.g.
+`User.flag : .bool .tt`; the typechecker then promises `principal.flag :
+bool .tt`, but the evaluator returns whatever the user-supplied entity
+holds — so `instanceOfType (Bool false) (.bool .tt)` fails.
+
+Note: we deliberately do NOT require `validateEntities schema entities =
+.ok ()` here. The bugs being tested live in the *static-analysis* layer
+(validateWellFormed, the typechecker), and downstream entity-validation
+would short-circuit by rejecting mismatched values before evaluation —
+masking the bug. Random search over `(expr, schema, request, entities)`
+quadruples directly probes the typechecker→evaluator agreement.
 -/
-def property_schema_well_formed_no_singleton_bools (schema : Schema) : PropertyResult :=
-  -- `Schema.validateWellFormed` iterates over `schema.environments`; with
-  -- no actions producing an environment, validation is vacuous and the
-  -- attribute-type check never runs.
-  if schema.environments.isEmpty then .discard
-  else
-    match Schema.validateWellFormed schema with
-    | .error _ => .pass
-    | .ok () =>
-      let attrsBad : List EntityType := schema.ets.toList.filterMap (fun (ety, entry) =>
-        match entry with
-        | .standard se =>
-          match (CedarType.record se.attrs).validateLifted with
-          | .error _ => some ety
-          | .ok () => none
-        | .enum _ => none)
-      match attrsBad with
-      | [] => .pass
-      | ety :: _ => .fail s!"Schema.validateWellFormed passed but entity type {ety} has an unlifted (singleton-bool) attribute"
+def property_validator_type_preservation
+    (expr : Expr) (schema : Schema) (request : Request) (entities : Entities) : PropertyResult :=
+  match Schema.validateWellFormed schema with
+  | .error _ => .discard
+  | .ok () =>
+  match validateRequest schema request with
+  | .error _ => .discard
+  | .ok () =>
+  match Schema.environment? schema request.principal.ty request.resource.ty request.action with
+  | none => .discard
+  | some env =>
+    match typeOf expr ∅ env with
+    | .error _ => .discard
+    | .ok (te, _) =>
+      match evaluate expr request entities with
+      | .error _ => .discard
+      | .ok v =>
+        if instanceOfType v te.typeOf env then .pass
+        else .fail s!"typechecker promised {repr te.typeOf} for {repr expr}, but evaluator returned {repr v} (not an instance under env)"
 
 /--
 Property (level-checker completeness fixture): for the chosen

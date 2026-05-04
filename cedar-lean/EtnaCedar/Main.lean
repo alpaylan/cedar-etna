@@ -219,7 +219,8 @@ def runPlausible (property : String) : IO Outcome :=
     runRandomSamples (fun (p : Cedar.Validation.Schema × Cedar.Spec.Request) =>
       property_validate_request_principal_exists p.fst p.snd)
   | "SchemaWellFormedNoSingletonBools" =>
-    runRandomSamples property_schema_well_formed_no_singleton_bools
+    runRandomSamples (fun (p : Cedar.Spec.Expr × Cedar.Validation.Schema × Cedar.Spec.Request × Cedar.Spec.Entities) =>
+      property_validator_type_preservation p.fst p.snd.fst p.snd.snd.fst p.snd.snd.snd)
   | "DefineEntityRejectsNonMember" =>
     runRandomSamplesIO (fun (p : List String × Cedar.Spec.EntityUID) =>
       property_define_entity_rejects_non_member p.fst p.snd)

@@ -149,8 +149,59 @@ private def schemaWithSingletonBoolAttr : Schema := {
   acts := Map.mk [(actionUid, aseValid)]
 }
 
+/-- Schema with `Action::"a"` applies-to-principal=[User], applies-to-resource=[Photo],
+matching the singleton-bool schema's User entry. -/
+private def aseUserPhoto : ActionSchemaEntry := {
+  appliesToPrincipal := Set.mk [userEty],
+  appliesToResource  := Set.mk [photoEty],
+  ancestors          := Set.empty,
+  context            := Map.empty,
+}
+
+private def schemaWithSingletonBoolAttrAndAction : Schema := {
+  ets  := Map.make [(userEty, userEntryWithSingletonBoolAttr), (photoEty, photoEntry)],
+  acts := Map.mk [(actionUid, aseUserPhoto)]
+}
+
+private def aliceUid : EntityUID := { ty := userEty, eid := "alice" }
+private def photoP1Uid : EntityUID := { ty := photoEty, eid := "p1" }
+
+/-- Request with principal/action/resource matching the schema. -/
+private def aliceFalseRequest : Request := {
+  principal := aliceUid,
+  action    := actionUid,
+  resource  := photoP1Uid,
+  context   := Map.empty
+}
+
+/-- Entity store where User::"alice" has `flag = false` — the typechecker,
+relying on the buggy schema, promises `principal.flag : bool .tt`, but the
+evaluator returns `false`, breaking type preservation. We deliberately do
+NOT validate these entities (the broad property skips that step), since
+`validateEntities` would otherwise short-circuit by rejecting the
+mismatched value. -/
+private def aliceFalseEntities : Entities :=
+  Map.mk [(aliceUid, {
+    attrs     := Map.mk [(("flag" : Attr), Value.prim (.bool false))],
+    ancestors := Set.empty,
+    tags      := Map.empty
+  })]
+
+/-- Expression `principal.flag` — typed as `bool .tt` by the buggy
+schema. -/
+private def exprPrincipalFlag : Expr :=
+  Expr.getAttr (Expr.var Var.principal) "flag"
+
+/-- Witness: type preservation fails. The schema's `User.flag : .bool .tt`
+is accepted by buggy `validateWellFormed`; the typechecker promises
+`principal.flag : bool .tt`; the evaluator returns `false` from the
+entity store. -/
 def witness_schema_well_formed_no_singleton_bools_case_attr_bool_tt : PropertyResult :=
-  property_schema_well_formed_no_singleton_bools schemaWithSingletonBoolAttr
+  property_validator_type_preservation
+    exprPrincipalFlag
+    schemaWithSingletonBoolAttrAndAction
+    aliceFalseRequest
+    aliceFalseEntities
 
 private def enumMembers : List String := ["alice", "bob"]
 private def ghostUserUid : EntityUID := { ty := userEty, eid := "zzz" }

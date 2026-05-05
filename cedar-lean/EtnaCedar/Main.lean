@@ -14,6 +14,7 @@ import Cedar.Etna.Property
 import Cedar.Etna.Properties
 import Cedar.Etna.Witnesses
 import Cedar.Etna.Generators
+import Cedar.Etna.TypeDirectedGen
 import Plausible
 
 open Cedar.Etna
@@ -43,7 +44,7 @@ Both can be overridden via env vars so callers can tune without rebuilds:
   ETNA_RUNNER_TIMEOUT_MS   — overrides runtimeBudgetMs (set ~5s below the
                               etna-cli timeout to give the runner headroom). -/
 private def defaultNumTrials  : Nat := 1_000_000
-private def defaultRuntimeMs  : Nat := 55_000   -- assumes ~60 s outer timeout
+private def defaultRuntimeMs  : Nat := 595_000  -- assumes ~600 s outer timeout
 private def maxSize : Nat := 100
 
 private def envNat (key : String) : IO (Option Nat) := do
@@ -117,6 +118,42 @@ private def runRandomSamples {α : Type}
   let t1 ← IO.monoMsNow
   return { status := "passed", m := { inputs := tested, elapsedUs := elapsedUs t1 } }
 
+/-- Explicit-`Gen` variant of `runRandomSamplesIO`. Used for properties
+that take type-directed inputs (e.g. `(TypeEnv, Expr)`) where the joint
+`Arbitrary` instance would be hard to write but a custom `Gen` is
+straightforward. -/
+private def runRandomSamplesWithIO {α : Type} [Repr α]
+    (g : Plausible.Gen α) (prop : α → IO PropertyResult) : IO Outcome := do
+  let numTrials ← getNumTrials
+  let budgetMs ← getRuntimeBudgetMs
+  let t0 ← IO.monoMsNow
+  let deadline := t0 + budgetMs
+  let elapsedUs (t1 : Nat) : Nat := (t1 - t0) * 1000
+  let mut tested : Nat := 0
+  for i in [0 : numTrials] do
+    if (← IO.monoMsNow) ≥ deadline then break
+    let sample ← Plausible.Gen.run g (i % maxSize)
+    tested := tested + 1
+    let pr ← (prop sample).toBaseIO
+    match pr with
+    | .ok .pass | .ok .discard => continue
+    | .ok (.fail msg) =>
+      let t1 ← IO.monoMsNow
+      return {
+        status := "failed",
+        m := { inputs := tested, elapsedUs := elapsedUs t1 },
+        counterexample := some s!"({reprStr sample}) — {msg}"
+      }
+    | .error e =>
+      let t1 ← IO.monoMsNow
+      return {
+        status := "aborted",
+        m := { inputs := tested, elapsedUs := elapsedUs t1 },
+        error := some s!"property raised IO exception: {e}"
+      }
+  let t1 ← IO.monoMsNow
+  return { status := "passed", m := { inputs := tested, elapsedUs := elapsedUs t1 } }
+
 private def runRandomSamplesIO {α : Type}
     [Plausible.SampleableExt α] [Repr α]
     (prop : α → IO PropertyResult) : IO Outcome := do
@@ -159,7 +196,9 @@ def witnessFor (property : String) : Except String (IO PropertyResult) :=
   | "ValidateActionEntityNoAttrs" =>
       .ok (pure witness_validate_action_entity_no_attrs_case_action_with_attr)
   | "SmtEncodeStringBalancedQuotes" =>
-      .ok witness_smt_encode_string_balanced_quotes_case_quote_in_middle
+      -- Broad witness: full Cedar→SymCC→CVC5→decoder pipeline preservation.
+      -- Requires CVC5 in env; discards otherwise.
+      .ok witness_symcc_pipeline_soundness_case_string_quote
   | "ValidateRejectsUndeclaredEntities" =>
       .ok (pure witness_validate_rejects_undeclared_entities_case_unknown_principal)
   | "ValidateRequestPrincipalExists" =>
@@ -171,11 +210,16 @@ def witnessFor (property : String) : Except String (IO PropertyResult) :=
   | "ValidateWithLevelAccepts" =>
       .ok (pure witness_validate_with_level_accepts_case_action_in_action)
   | "EncoderEmptyRecordWellFormed" =>
-      .ok witness_encoder_empty_record_well_formed_case_record_zero_fields
+      -- Broad witness: full Cedar→SymCC→CVC5→decoder pipeline preservation.
+      .ok witness_symcc_pipeline_soundness_case_empty_record
   | "EncoderEmptyRecordDecodeRoundtrip" =>
       .ok (pure witness_encoder_empty_record_decode_roundtrip_case_R0_zero_fields)
   | "DurationParseMinValue" =>
       .ok (pure witness_duration_parse_min_value_case_int64_min)
+  | "SymCCPipelineSoundnessStringQuote" =>
+      .ok witness_symcc_pipeline_soundness_case_string_quote
+  | "SymCCPipelineSoundnessEmptyRecord" =>
+      .ok witness_symcc_pipeline_soundness_case_empty_record
   | _ => .error s!"Unknown property for etna: {property}"
 
 def runEtna (property : String) : IO Outcome := do
@@ -204,11 +248,15 @@ counterexamples. Cedar's existing derivations cover most of these. -/
 def runPlausible (property : String) : IO Outcome :=
   match property with
   | "DecimalParseNegativeSignPreserved" =>
-    runRandomSamplesWith Cedar.Etna.genDecimalString property_decimal_parse_negative_sign_preserved
+    runRandomSamples property_decimal_parse_negative_sign_preserved
   | "DecimalParseNoUnderscore" =>
-    runRandomSamplesWith Cedar.Etna.genDecimalString property_decimal_parse_no_underscore
+    runRandomSamples property_decimal_parse_no_underscore
   | "SmtEncodeStringBalancedQuotes" =>
-    runRandomSamplesIO property_smt_encode_string_balanced_quotes
+    -- Broad pipeline preservation via type-directed generation: random
+    -- well-typed (env, body) drives the encode→CVC5→getModel→decode flow;
+    -- string-quote bugs in the encoder surface as CVC5 parse rejections.
+    runRandomSamplesWithIO Cedar.Etna.TypeDirected.genJointInputs (fun (env, body, _, _) =>
+      property_symcc_pipeline_soundness env body)
   | "ValidateActionEntityNoAttrs" =>
     runRandomSamples (fun (p : Cedar.Validation.Schema × Cedar.Spec.Entities) =>
       property_validate_action_entity_no_attrs p.fst p.snd)
@@ -219,7 +267,8 @@ def runPlausible (property : String) : IO Outcome :=
     runRandomSamples (fun (p : Cedar.Validation.Schema × Cedar.Spec.Request) =>
       property_validate_request_principal_exists p.fst p.snd)
   | "SchemaWellFormedNoSingletonBools" =>
-    runRandomSamples property_schema_well_formed_no_singleton_bools
+    runRandomSamples (fun (p : Cedar.Spec.Expr × Cedar.Validation.Schema × Cedar.Spec.Request × Cedar.Spec.Entities) =>
+      property_validator_type_preservation p.fst p.snd.fst p.snd.snd.fst p.snd.snd.snd)
   | "DefineEntityRejectsNonMember" =>
     runRandomSamplesIO (fun (p : List String × Cedar.Spec.EntityUID) =>
       property_define_entity_rejects_non_member p.fst p.snd)
@@ -227,11 +276,17 @@ def runPlausible (property : String) : IO Outcome :=
     runRandomSamples (fun (p : Cedar.Spec.Policies × Cedar.Validation.Schema × Nat) =>
       property_validate_with_level_accepts p.fst p.snd.fst p.snd.snd)
   | "EncoderEmptyRecordWellFormed" =>
-    runRandomSamplesIO property_encoder_empty_record_well_formed
+    -- Same broad pipeline. Empty-record literals in the random body
+    -- exercise defineRecord; the malformed value form makes CVC5 reject.
+    runRandomSamplesWithIO Cedar.Etna.TypeDirected.genJointInputs (fun (env, body, _, _) =>
+      property_symcc_pipeline_soundness env body)
   | "EncoderEmptyRecordDecodeRoundtrip" =>
-    runRandomSamplesWith Cedar.Etna.genRecordTypeName property_encoder_empty_record_decode_roundtrip
+    -- Same broad pipeline. CVC5's model contains the bare record symbol;
+    -- the buggy decoder rejects it.
+    runRandomSamplesWithIO Cedar.Etna.TypeDirected.genJointInputs (fun (env, body, _, _) =>
+      property_symcc_pipeline_soundness env body)
   | "DurationParseMinValue" =>
-    runRandomSamplesWith Cedar.Etna.genInt64MagnitudeAroundMin property_duration_parse_min_value
+    runRandomSamples property_duration_parse_min_value
   | _ => return {
       status := "aborted",
       m := {},
